@@ -14,6 +14,7 @@ public class ThreadDoc {
 	private List<ThreadMember> members = new ArrayList<>();
 
 	private Instant createdAt;
+	private Instant lastMessageAt;
 
 	public String getId() {
 		return id;
@@ -37,5 +38,13 @@ public class ThreadDoc {
 
 	public void setCreatedAt(Instant createdAt) {
 		this.createdAt = createdAt;
+	}
+
+	public Instant getLastMessageAt() {
+		return lastMessageAt;
+	}
+
+	public void setLastMessageAt(Instant lastMessageAt) {
+		this.lastMessageAt = lastMessageAt;
 	}
 }

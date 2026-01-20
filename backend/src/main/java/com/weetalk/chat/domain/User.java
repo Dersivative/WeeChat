@@ -3,23 +3,17 @@ package com.weetalk.chat.domain;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.UUID;
 
 @Entity
 @Table(name = "app_user")
-public class User {
-	@Id
-	@GeneratedValue(strategy = GenerationType.UUID)
-	private UUID id;
+public class User extends Account {
+	/** Encja reprezentuje konto samodzielne - pełnoprawne. */
 
 	@Column(nullable = false, unique = true, length = 100)
 	private String login;
@@ -40,14 +34,6 @@ public class User {
 		inverseJoinColumns = @JoinColumn(name = "child_id")
 	)
 	private Set<Child> children = new HashSet<>();
-
-	public UUID getId() {
-		return id;
-	}
-
-	public void setId(UUID id) {
-		this.id = id;
-	}
 
 	public String getLogin() {
 		return login;

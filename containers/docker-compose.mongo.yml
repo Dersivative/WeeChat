@@ -6,10 +6,10 @@ services:
     container_name: chat-mongo
     restart: unless-stopped
     environment:
-      MONGO_INITDB_ROOT_USERNAME: chat_root
-      MONGO_INITDB_ROOT_PASSWORD: chat_password
+      MONGO_INITDB_ROOT_USERNAME: weechat_root
+      MONGO_INITDB_ROOT_PASSWORD: weechat_password
     ports:
-      - "27017:27017"
+      - "21345:27017"
     volumes:
       - mongo_data:/data/db
 

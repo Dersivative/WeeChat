@@ -1,0 +1,42 @@
+package com.weetalk.chat.domain;
+
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Inheritance;
+import jakarta.persistence.InheritanceType;
+import jakarta.persistence.Table;
+import jakarta.persistence.Column;
+import java.util.UUID;
+
+@Entity
+@Table(name = "account")
+@Inheritance(strategy = InheritanceType.JOINED)
+public class Account {
+	/** Superencja dla User i Child - zapewnia unikalny identyfikator dla każdego konta,
+	 * co ułatwia zarządzanie relacjami między kontami (znajomości oraz przynależność do wątków/czatów).
+	 */
+	@Id
+	@GeneratedValue(strategy = GenerationType.UUID)
+	private UUID id;
+
+	@Column(length = 500)
+	private String avatarUrl;
+
+	public UUID getId() {
+		return id;
+	}
+
+	public void setId(UUID id) {
+		this.id = id;
+	}
+
+	public String getAvatarUrl() {
+		return avatarUrl;
+	}
+
+	public void setAvatarUrl(String avatarUrl) {
+		this.avatarUrl = avatarUrl;
+	}
+}

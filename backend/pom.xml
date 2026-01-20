@@ -9,10 +9,10 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.weetalk</groupId>
-	<artifactId>chat</artifactId>
+	<artifactId>weechat-backend</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>chat</name>
-	<description>Demo project for Spring Boot</description>
+	<name>weechat-backend</name>
+	<description>Backend for WeeChat</description>
 	<url/>
 	<licenses>
 		<license/>
@@ -57,6 +57,11 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-websocket</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>3.0.1</version>
 		</dependency>
 		<dependency>
 			<groupId>org.flywaydb</groupId>

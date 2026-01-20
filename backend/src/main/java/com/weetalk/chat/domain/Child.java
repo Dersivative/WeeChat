@@ -5,22 +5,16 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.UUID;
 
 @Entity
 @Table(name = "child")
-public class Child {
-	@Id
-	@GeneratedValue(strategy = GenerationType.UUID)
-	private UUID id;
+public class Child extends Account {
+	/** Encja reprezentuje konto dziecka - silnie powiązane z kontem typu User (rodzica/opiekuna) */
 
 	@Column(nullable = false, length = 100)
 	private String displayName;
@@ -36,14 +30,6 @@ public class Child {
 
 	@ManyToMany(mappedBy = "children", fetch = FetchType.LAZY)
 	private Set<User> parents = new HashSet<>();
-
-	public UUID getId() {
-		return id;
-	}
-
-	public void setId(UUID id) {
-		this.id = id;
-	}
 
 	public String getDisplayName() {
 		return displayName;

@@ -6,11 +6,11 @@ services:
     container_name: chat-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: chat_user
-      POSTGRES_PASSWORD: chat_password
-      POSTGRES_DB: chat_db
+      POSTGRES_USER: weechat_user
+      POSTGRES_PASSWORD: weechat_password
+      POSTGRES_DB: weechat_db
     ports:
-      - "5432:5432"
+      - "54321:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

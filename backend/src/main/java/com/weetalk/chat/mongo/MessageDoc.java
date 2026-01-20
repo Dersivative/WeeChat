@@ -1,10 +1,12 @@
 package com.weetalk.chat.mongo;
 
 import com.weetalk.chat.domain.AttachmentMeta;
+import com.weetalk.chat.domain.MessageDeliveryStatus;
 import com.weetalk.chat.domain.ModerationDecision;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -14,10 +16,13 @@ public class MessageDoc {
 	private String id;
 
 	private String threadId;
-	private ThreadMember sender;
+	private UUID senderAccountId;
 	private String text;
 	private List<AttachmentMeta> attachments = new ArrayList<>();
+	private List<MessageDeliveryStatus> deliveryStatuses = new ArrayList<>();
 	private ModerationDecision moderationDecision;
+	private Instant deletedAt;
+	private UUID deletedByAccountId;
 	private Instant createdAt;
 
 	public String getId() {
@@ -36,12 +41,12 @@ public class MessageDoc {
 		this.threadId = threadId;
 	}
 
-	public ThreadMember getSender() {
-		return sender;
+	public UUID getSenderAccountId() {
+		return senderAccountId;
 	}
 
-	public void setSender(ThreadMember sender) {
-		this.sender = sender;
+	public void setSenderAccountId(UUID senderAccountId) {
+		this.senderAccountId = senderAccountId;
 	}
 
 	public String getText() {
@@ -60,12 +65,36 @@ public class MessageDoc {
 		this.attachments = attachments;
 	}
 
+	public List<MessageDeliveryStatus> getDeliveryStatuses() {
+		return deliveryStatuses;
+	}
+
+	public void setDeliveryStatuses(List<MessageDeliveryStatus> deliveryStatuses) {
+		this.deliveryStatuses = deliveryStatuses;
+	}
+
 	public ModerationDecision getModerationDecision() {
 		return moderationDecision;
 	}
 
 	public void setModerationDecision(ModerationDecision moderationDecision) {
 		this.moderationDecision = moderationDecision;
+	}
+
+	public Instant getDeletedAt() {
+		return deletedAt;
+	}
+
+	public void setDeletedAt(Instant deletedAt) {
+		this.deletedAt = deletedAt;
+	}
+
+	public UUID getDeletedByAccountId() {
+		return deletedByAccountId;
+	}
+
+	public void setDeletedByAccountId(UUID deletedByAccountId) {
+		this.deletedByAccountId = deletedByAccountId;
 	}
 
 	public Instant getCreatedAt() {

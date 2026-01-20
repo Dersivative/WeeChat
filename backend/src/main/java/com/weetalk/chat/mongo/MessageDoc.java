@@ -21,7 +21,7 @@ public class MessageDoc {
 	private List<AttachmentMeta> attachments = new ArrayList<>();
 	private List<MessageDeliveryStatus> deliveryStatuses = new ArrayList<>();
 	private ModerationDecision moderationDecision;
-	private Instant deletedAt;
+	private Instant deletedAt; // wiadomość nie będzie usuwana z bazy, natomiast użytkownik nie będzie w stanie odczytać jej treści (endpoint nie zwroci tresci)
 	private UUID deletedByAccountId;
 	private Instant createdAt;
 

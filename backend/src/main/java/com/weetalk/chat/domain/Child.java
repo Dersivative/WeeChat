@@ -16,9 +16,6 @@ import java.util.Set;
 public class Child extends Account {
 	/** Encja reprezentuje konto dziecka - silnie powiązane z kontem typu User (rodzica/opiekuna) */
 
-	@Column(nullable = false, length = 100)
-	private String displayName;
-
 	@Column(length = 255)
 	private String loginCodeHash;
 
@@ -30,14 +27,6 @@ public class Child extends Account {
 
 	@ManyToMany(mappedBy = "children", fetch = FetchType.LAZY)
 	private Set<User> parents = new HashSet<>();
-
-	public String getDisplayName() {
-		return displayName;
-	}
-
-	public void setDisplayName(String displayName) {
-		this.displayName = displayName;
-	}
 
 	public String getLoginCodeHash() {
 		return loginCodeHash;

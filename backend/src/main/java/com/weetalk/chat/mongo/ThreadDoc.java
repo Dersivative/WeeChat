@@ -15,6 +15,7 @@ public class ThreadDoc {
 
 	private Instant createdAt;
 	private Instant lastMessageAt;
+	private String customTitle;
 
 	public String getId() {
 		return id;
@@ -46,5 +47,13 @@ public class ThreadDoc {
 
 	public void setLastMessageAt(Instant lastMessageAt) {
 		this.lastMessageAt = lastMessageAt;
+	}
+
+	public String getCustomTitle() {
+		return customTitle;
+	}
+
+	public void setCustomTitle(String customTitle) {
+		this.customTitle = customTitle;
 	}
 }

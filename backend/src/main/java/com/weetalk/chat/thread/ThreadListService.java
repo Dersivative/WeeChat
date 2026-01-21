@@ -1,0 +1,219 @@
+package com.weetalk.chat.thread;
+
+import com.weetalk.chat.auth.AccountRepository;
+import com.weetalk.chat.domain.Account;
+import com.weetalk.chat.domain.MessageDeliveryState;
+import com.weetalk.chat.domain.MessageDeliveryStatus;
+import com.weetalk.chat.mongo.MessageDoc;
+import com.weetalk.chat.mongo.MessageRepository;
+import com.weetalk.chat.mongo.ThreadDoc;
+import com.weetalk.chat.mongo.ThreadMember;
+import com.weetalk.chat.mongo.ThreadRepository;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import org.springframework.stereotype.Service;
+
+@Service
+public class ThreadListService {
+	private static final String MESSAGE_UNAVAILABLE = "Message unavailable";
+	private static final String EMPTY_CHAT = "No messages yet";
+
+	private final ThreadRepository threadRepository;
+	private final MessageRepository messageRepository;
+	private final AccountRepository accountRepository;
+
+	public ThreadListService(
+		ThreadRepository threadRepository,
+		MessageRepository messageRepository,
+		AccountRepository accountRepository
+	) {
+		this.threadRepository = threadRepository;
+		this.messageRepository = messageRepository;
+		this.accountRepository = accountRepository;
+	}
+
+	public ThreadListResponse listThreads(UUID viewerAccountId) {
+		List<ThreadDoc> threads = threadRepository
+			.findByMembersAccountIdAndMembersLeftAtIsNullOrderByLastMessageAtDesc(viewerAccountId);
+
+		List<UUID> accountIds = threads.stream()
+			.flatMap(thread -> activeMembers(thread).stream())
+			.map(ThreadMember::getAccountId)
+			.filter(Objects::nonNull)
+			.distinct()
+			.toList();
+
+		Map<UUID, Account> accounts = accountRepository.findAllById(accountIds)
+			.stream()
+			.collect(Collectors.toMap(Account::getId, Function.identity()));
+
+		List<ThreadListItemResponse> items = new ArrayList<>();
+		for (ThreadDoc thread : threads) {
+			List<ThreadMember> members = activeMembers(thread);
+			MessageDoc lastMessage = messageRepository.findTopByThreadIdOrderByCreatedAtDesc(thread.getId());
+			items.add(toListItem(thread, members, accounts, viewerAccountId, lastMessage));
+		}
+
+		items.sort(Comparator.comparing(ThreadListItemResponse::getLastMessageAt, Comparator.nullsLast(Comparator.naturalOrder()))
+			.reversed());
+
+		return new ThreadListResponse(items);
+	}
+
+	private ThreadListItemResponse toListItem(
+		ThreadDoc thread,
+		List<ThreadMember> members,
+		Map<UUID, Account> accounts,
+		UUID viewerAccountId,
+		MessageDoc lastMessage
+	) {
+		String title = resolveTitle(thread, members, accounts, viewerAccountId);
+		List<String> avatarUrls = resolveAvatars(members, accounts, viewerAccountId);
+		String lastMessageText = resolveLastMessageText(lastMessage);
+		Instant lastMessageAt = resolveLastMessageAt(thread, lastMessage);
+		boolean unread = isUnread(lastMessage, viewerAccountId);
+
+		return new ThreadListItemResponse(
+			thread.getId(),
+			title,
+			lastMessageText,
+			lastMessageAt,
+			unread,
+			avatarUrls
+		);
+	}
+
+	private List<ThreadMember> activeMembers(ThreadDoc thread) {
+		return thread.getMembers()
+			.stream()
+			.filter(member -> member.getLeftAt() == null)
+			.toList();
+	}
+
+	private String resolveTitle(
+		ThreadDoc thread,
+		List<ThreadMember> members,
+		Map<UUID, Account> accounts,
+		UUID viewerAccountId
+	) {
+		if (thread.getCustomTitle() != null && !thread.getCustomTitle().isBlank()) {
+			return thread.getCustomTitle();
+		}
+
+		if (members.size() == 2) {
+			Optional<ThreadMember> other = members.stream()
+				.filter(member -> !viewerAccountId.equals(member.getAccountId()))
+				.findFirst();
+			if (other.isPresent()) {
+				return displayNameFor(accounts, other.get().getAccountId());
+			}
+		}
+
+		if (!members.isEmpty()) {
+			ThreadMember firstMember = members.get(0);
+			int remaining = Math.max(0, members.size() - 2);
+			if (members.size() >= 3) {
+				return displayNameFor(accounts, firstMember.getAccountId()) + " + " + remaining + " osób";
+			}
+
+			return displayNameFor(accounts, firstMember.getAccountId());
+		}
+
+		return "Chat";
+	}
+
+	private List<String> resolveAvatars(
+		List<ThreadMember> members,
+		Map<UUID, Account> accounts,
+		UUID viewerAccountId
+	) {
+		List<String> avatars = new ArrayList<>();
+
+		if (members.size() == 2) {
+			for (ThreadMember member : members) {
+				if (!viewerAccountId.equals(member.getAccountId())) {
+					String avatarUrl = avatarFor(accounts, member.getAccountId());
+					if (avatarUrl != null) {
+						avatars.add(avatarUrl);
+					}
+					return avatars;
+				}
+			}
+		}
+
+		for (int i = 0; i < Math.min(3, members.size()); i += 1) {
+			String avatarUrl = avatarFor(accounts, members.get(i).getAccountId());
+			if (avatarUrl != null) {
+				avatars.add(avatarUrl);
+			}
+		}
+
+		return avatars;
+	}
+
+	private String resolveLastMessageText(MessageDoc lastMessage) {
+		if (lastMessage == null) {
+			return EMPTY_CHAT;
+		}
+
+		if (lastMessage.getDeletedAt() != null || lastMessage.getText() == null || lastMessage.getText().isBlank()) {
+			return MESSAGE_UNAVAILABLE;
+		}
+
+		return lastMessage.getText();
+	}
+
+	private Instant resolveLastMessageAt(ThreadDoc thread, MessageDoc lastMessage) {
+		if (lastMessage != null && lastMessage.getCreatedAt() != null) {
+			return lastMessage.getCreatedAt();
+		}
+
+		return thread.getLastMessageAt();
+	}
+
+	private boolean isUnread(MessageDoc lastMessage, UUID viewerAccountId) {
+		if (lastMessage == null || viewerAccountId == null) {
+			return false;
+		}
+
+		if (viewerAccountId.equals(lastMessage.getSenderAccountId())) {
+			return false;
+		}
+
+		List<MessageDeliveryStatus> deliveryStatuses = lastMessage.getDeliveryStatuses();
+		if (deliveryStatuses == null || deliveryStatuses.isEmpty()) {
+			return true;
+		}
+
+		return deliveryStatuses.stream()
+			.filter(status -> viewerAccountId.equals(status.getAccountId()))
+			.map(MessageDeliveryStatus::getState)
+			.findFirst()
+			.map(state -> state != MessageDeliveryState.READ)
+			.orElse(true);
+	}
+
+	private String displayNameFor(Map<UUID, Account> accounts, UUID accountId) {
+		Account account = accounts.get(accountId);
+		if (account != null && account.getDisplayName() != null && !account.getDisplayName().isBlank()) {
+			return account.getDisplayName();
+		}
+		return "Unknown";
+	}
+
+	private String avatarFor(Map<UUID, Account> accounts, UUID accountId) {
+		Account account = accounts.get(accountId);
+		if (account != null && account.getAvatarUrl() != null && !account.getAvatarUrl().isBlank()) {
+			return account.getAvatarUrl();
+		}
+		return null;
+	}
+}

@@ -24,6 +24,9 @@ public class Account {
 	@Column(length = 500)
 	private String avatarUrl;
 
+	@Column(nullable = false, length = 100)
+	private String displayName;
+
 	public UUID getId() {
 		return id;
 	}
@@ -38,5 +41,13 @@ public class Account {
 
 	public void setAvatarUrl(String avatarUrl) {
 		this.avatarUrl = avatarUrl;
+	}
+
+	public String getDisplayName() {
+		return displayName;
+	}
+
+	public void setDisplayName(String displayName) {
+		this.displayName = displayName;
 	}
 }

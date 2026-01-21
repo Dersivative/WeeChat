@@ -6,4 +6,5 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 
 public interface MessageRepository extends MongoRepository<MessageDoc, String> {
 	Page<MessageDoc> findByThreadIdOrderByCreatedAtDesc(String threadId, Pageable pageable);
+	MessageDoc findTopByThreadIdOrderByCreatedAtDesc(String threadId);
 }

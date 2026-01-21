@@ -36,6 +36,10 @@ public class AuthService {
 			return passwordEncoder.matches(rawPassword, storedHash);
 		}
 
+		if (storedHash.startsWith("$2a$") || storedHash.startsWith("$2b$") || storedHash.startsWith("$2y$")) {
+			return passwordEncoder.matches(rawPassword, "{bcrypt}" + storedHash);
+		}
+
 		return passwordEncoder.matches(rawPassword, "{noop}" + storedHash);
 	}
 }

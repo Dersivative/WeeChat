@@ -41,6 +41,25 @@ dbInstance.threads.insertMany([
 		],
 		createdAt: ISODate("2026-01-18T15:00:00Z"),
 		lastMessageAt: ISODate("2026-01-20T08:40:00Z")
+	},
+	{
+		_id: "thread-003",
+		members: [
+			{
+				accountId: UUID("11111111-1111-1111-1111-111111111111"),
+				joinedAt: ISODate("2026-01-20T13:00:00Z"),
+				leftAt: null,
+				lastReadAt: ISODate("2026-01-20T13:10:00Z")
+			},
+			{
+				accountId: UUID("22222222-2222-2222-2222-222222222222"),
+				joinedAt: ISODate("2026-01-20T13:00:00Z"),
+				leftAt: null,
+				lastReadAt: ISODate("2026-01-20T13:12:00Z")
+			}
+		],
+		createdAt: ISODate("2026-01-20T13:00:00Z"),
+		lastMessageAt: ISODate("2026-01-20T13:12:00Z")
 	}
 ]);
 

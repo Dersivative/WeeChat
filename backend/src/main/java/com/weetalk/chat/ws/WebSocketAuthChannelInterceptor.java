@@ -30,7 +30,7 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
 
 		if (StompCommand.CONNECT.equals(accessor.getCommand())) {
 			String token = resolveToken(accessor);
-			AuthUserPrincipal userDetails = jwtService.parseToken(token);
+			AuthUserPrincipal userDetails = jwtService.parseAccessToken(token);
 			UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
 				userDetails,
 				token,

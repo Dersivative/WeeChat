@@ -5,9 +5,7 @@ import com.weetalk.chat.domain.User;
 import com.weetalk.chat.mongo.ThreadDoc;
 import com.weetalk.chat.mongo.ThreadMember;
 import com.weetalk.chat.mongo.ThreadRepository;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -26,6 +24,8 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -36,6 +36,8 @@ class AuthAndThreadControllerTests {
 	private ThreadRepository threadRepository;
 	@Autowired
 	private PasswordEncoder passwordEncoder;
+	@Autowired
+	private ObjectMapper objectMapper;
 	private RestTemplate restTemplate;
 	@LocalServerPort
 	private int port;
@@ -125,7 +127,7 @@ class AuthAndThreadControllerTests {
 
 	@Test
 	void listThreadsReturnsOnlyMembersThreads() {
-		HttpHeaders headers = basicAuthHeaders("alice", "secret");
+		HttpHeaders headers = bearerHeaders(loginAndGetAccessToken("alice", "secret"));
 		ResponseEntity<String> response = restTemplate.exchange(
 			url("/api/threads"),
 			HttpMethod.GET,
@@ -150,11 +152,26 @@ class AuthAndThreadControllerTests {
 		return "http://localhost:" + port + path;
 	}
 
-	private HttpHeaders basicAuthHeaders(String login, String password) {
-		String token = Base64.getEncoder()
-			.encodeToString((login + ":" + password).getBytes(StandardCharsets.UTF_8));
+	private String loginAndGetAccessToken(String login, String password) {
 		HttpHeaders headers = new HttpHeaders();
-		headers.set(HttpHeaders.AUTHORIZATION, "Basic " + token);
+		headers.setContentType(MediaType.APPLICATION_JSON);
+		HttpEntity<Map<String, String>> request = new HttpEntity<>(
+			Map.of("login", login, "password", password),
+			headers
+		);
+		ResponseEntity<String> response = restTemplate.postForEntity(url("/api/auth/login"), request, String.class);
+		Assertions.assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
+		try {
+			JsonNode json = objectMapper.readTree(response.getBody());
+			return json.path("accessToken").asText();
+		} catch (Exception ex) {
+			throw new IllegalStateException("Missing access token in response", ex);
+		}
+	}
+
+	private HttpHeaders bearerHeaders(String accessToken) {
+		HttpHeaders headers = new HttpHeaders();
+		headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
 		return headers;
 	}
 }

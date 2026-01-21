@@ -7,14 +7,23 @@ public class LoginResponse {
 	private String login;
 	private boolean twoFactorEnabled;
 	private String avatarUrl;
-	private String token;
+	private String accessToken;
+	private String refreshToken;
 
-	public LoginResponse(UUID accountId, String login, boolean twoFactorEnabled, String avatarUrl, String token) {
+	public LoginResponse(
+		UUID accountId,
+		String login,
+		boolean twoFactorEnabled,
+		String avatarUrl,
+		String accessToken,
+		String refreshToken
+	) {
 		this.accountId = accountId;
 		this.login = login;
 		this.twoFactorEnabled = twoFactorEnabled;
 		this.avatarUrl = avatarUrl;
-		this.token = token;
+		this.accessToken = accessToken;
+		this.refreshToken = refreshToken;
 	}
 
 	public UUID getAccountId() {
@@ -33,7 +42,11 @@ public class LoginResponse {
 		return avatarUrl;
 	}
 
-	public String getToken() {
-		return token;
+	public String getAccessToken() {
+		return accessToken;
+	}
+
+	public String getRefreshToken() {
+		return refreshToken;
 	}
 }

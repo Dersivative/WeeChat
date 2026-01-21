@@ -21,39 +21,61 @@ import org.springframework.stereotype.Service;
 @Service
 public class JwtService {
 	private static final String HMAC_ALGORITHM = "HmacSHA256";
+	private static final String TOKEN_TYPE_ACCESS = "access";
+	private static final String TOKEN_TYPE_REFRESH = "refresh";
 
 	private final SecretKey secretKey;
-	private final Duration tokenTtl;
+	private final Duration accessTokenTtl;
+	private final Duration refreshTokenTtl;
 	private final ObjectMapper objectMapper;
 	private final Base64.Encoder base64UrlEncoder;
 	private final Base64.Decoder base64UrlDecoder;
 
 	public JwtService(
 		@Value("${security.jwt.secret}") String secret,
-		@Value("${security.jwt.expiration-seconds:3600}") long expirationSeconds,
+		@Value("${security.jwt.access-expiration-seconds:300}") long accessExpirationSeconds,
+		@Value("${security.jwt.refresh-expiration-seconds:2592000}") long refreshExpirationSeconds,
 		ObjectMapper objectMapper
 	) {
 		if (secret == null || secret.isBlank()) {
 			throw new IllegalStateException("JWT secret is not configured");
 		}
 		this.secretKey = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), HMAC_ALGORITHM);
-		this.tokenTtl = Duration.ofSeconds(expirationSeconds);
+		this.accessTokenTtl = Duration.ofSeconds(accessExpirationSeconds);
+		this.refreshTokenTtl = Duration.ofSeconds(refreshExpirationSeconds);
 		this.objectMapper = objectMapper;
 		this.base64UrlEncoder = Base64.getUrlEncoder().withoutPadding();
 		this.base64UrlDecoder = Base64.getUrlDecoder();
 	}
 
-	public String generateToken(User user) {
+	public String generateAccessToken(User user) {
+		return generateToken(user, TOKEN_TYPE_ACCESS, accessTokenTtl);
+	}
+
+	public String generateRefreshToken(User user) {
+		return generateToken(user, TOKEN_TYPE_REFRESH, refreshTokenTtl);
+	}
+
+	public AuthUserPrincipal parseAccessToken(String token) {
+		return parseToken(token, TOKEN_TYPE_ACCESS);
+	}
+
+	public AuthUserPrincipal parseRefreshToken(String token) {
+		return parseToken(token, TOKEN_TYPE_REFRESH);
+	}
+
+	private String generateToken(User user, String tokenType, Duration ttl) {
 		Instant now = Instant.now();
 		Map<String, Object> payload = new LinkedHashMap<>();
 		payload.put("sub", user.getId().toString());
 		payload.put("login", user.getLogin());
 		payload.put("iat", now.getEpochSecond());
-		payload.put("exp", now.plus(tokenTtl).getEpochSecond());
+		payload.put("exp", now.plus(ttl).getEpochSecond());
+		payload.put("token_type", tokenType);
 		return sign(payload);
 	}
 
-	public AuthUserPrincipal parseToken(String token) {
+	private AuthUserPrincipal parseToken(String token, String expectedType) {
 		String[] parts = token.split("\\.");
 		if (parts.length != 3) {
 			throw new BadCredentialsException("Invalid token format");
@@ -69,6 +91,10 @@ public class JwtService {
 		JsonNode payload = readJson(decodeBase64(parts[1]));
 		String subject = getTextClaim(payload, "sub");
 		String login = getTextClaim(payload, "login");
+		String tokenType = getTextClaim(payload, "token_type");
+		if (!expectedType.equals(tokenType)) {
+			throw new BadCredentialsException("Invalid token type");
+		}
 		long exp = payload.path("exp").asLong(0);
 		if (exp == 0 || Instant.now().isAfter(Instant.ofEpochSecond(exp))) {
 			throw new BadCredentialsException("Token expired");

@@ -1,0 +1,78 @@
+asyncapi: '2.6.0'
+info:
+  title: WeeChat WebSocket API
+  version: '1.0.0'
+  description: |
+    STOMP over WebSocket endpoints for realtime chat.
+    Clients must provide a JWT access token in the STOMP CONNECT headers:
+    `Authorization: Bearer <token>`.
+servers:
+  local:
+    url: ws://localhost:8080/ws
+    protocol: stomp
+    description: Local development broker endpoint.
+    security:
+      - bearerAuth: []
+channels:
+  /app/threads/list:
+    publish:
+      summary: Request the current user's thread list.
+      description: Send an empty STOMP message to trigger a response on `/user/queue/threads`.
+      message:
+        name: ThreadListRequest
+        title: Thread list request
+        payload:
+          $ref: '#/components/schemas/ThreadListRequest'
+  /user/queue/threads:
+    subscribe:
+      summary: Receive the current user's thread list.
+      message:
+        name: ThreadListResponse
+        title: Thread list response
+        payload:
+          $ref: '#/components/schemas/ThreadListResponse'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ThreadListRequest:
+      type: object
+      description: Empty payload. Send `{}` or an empty frame.
+      additionalProperties: false
+    ThreadListResponse:
+      type: object
+      required:
+        - threads
+      properties:
+        threads:
+          type: array
+          items:
+            $ref: '#/components/schemas/ThreadListItem'
+    ThreadListItem:
+      type: object
+      required:
+        - threadId
+        - title
+        - unread
+        - avatarUrls
+      properties:
+        threadId:
+          type: string
+        title:
+          type: string
+        lastMessageText:
+          type: string
+          nullable: true
+        lastMessageAt:
+          type: string
+          format: date-time
+          nullable: true
+        unread:
+          type: boolean
+        avatarUrls:
+          type: array
+          items:
+            type: string

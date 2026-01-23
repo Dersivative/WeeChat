@@ -21,8 +21,8 @@ public class Account {
 	@GeneratedValue(strategy = GenerationType.UUID)
 	private UUID id;
 
-	@Column(length = 500)
-	private String avatarUrl;
+	@Column(name = "avatar_url", length = 500)
+	private String avatarFileName;
 
 	@Column(nullable = false, length = 100)
 	private String displayName;
@@ -35,12 +35,12 @@ public class Account {
 		this.id = id;
 	}
 
-	public String getAvatarUrl() {
-		return avatarUrl;
+	public String getAvatarFileName() {
+		return avatarFileName;
 	}
 
-	public void setAvatarUrl(String avatarUrl) {
-		this.avatarUrl = avatarUrl;
+	public void setAvatarFileName(String avatarFileName) {
+		this.avatarFileName = avatarFileName;
 	}
 
 	public String getDisplayName() {

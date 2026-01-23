@@ -124,7 +124,6 @@ dbInstance.messages.insertMany([
 		attachments: [
 			{
 				kind: "IMAGE",
-				url: "https://cdn.example.com/uploads/photo-001.png",
 				filename: "photo-001.png",
 				contentType: "image/png",
 				sizeBytes: 24567
@@ -158,7 +157,6 @@ dbInstance.messages.insertMany([
 		attachments: [
 			{
 				kind: "AUDIO",
-				url: "https://cdn.example.com/uploads/audio-001.m4a",
 				filename: "audio-001.m4a",
 				contentType: "audio/mp4",
 				sizeBytes: 73421

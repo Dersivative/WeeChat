@@ -1,7 +1,10 @@
 package com.weetalk.chat.domain;
 
+import org.springframework.data.annotation.Transient;
+
 public class AttachmentMeta {
 	private AttachmentKind kind;
+	@Transient
 	private String url;
 	private String filename;
 	private String contentType;

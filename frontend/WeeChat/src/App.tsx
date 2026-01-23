@@ -1,104 +1,175 @@
-import { useState } from 'react'
+import { Client } from '@stomp/stompjs'
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
+import AuthPanel from './components/auth/AuthPanel'
+import ThreadList from './components/threads/ThreadList'
+import type { AuthState, LoginResponse, ThreadListResponse } from './types'
 
 function App() {
-  const [role, setRole] = useState<'parent' | 'child'>('parent')
+  const apiBaseUrl =
+    typeof import.meta.env.VITE_API_BASE_URL === 'string'
+      ? import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '')
+      : ''
+  const [formState, setFormState] = useState({ login: '', password: '' })
+  const [auth, setAuth] = useState<AuthState | null>(null)
+  const [loginError, setLoginError] = useState<string | null>(null)
+  const [loginLoading, setLoginLoading] = useState(false)
+
+  const [threads, setThreads] = useState<ThreadListItem[]>([])
+  const [threadsLoading, setThreadsLoading] = useState(false)
+  const [threadsError, setThreadsError] = useState<string | null>(null)
+  const stompClientRef = useRef<Client | null>(null)
+
+  const wsUrl = useMemo(() => {
+    const base = apiBaseUrl || window.location.origin
+    return `${base.replace(/^http/, 'ws')}/ws`
+  }, [apiBaseUrl])
+
+  useEffect(() => {
+    if (!auth) {
+      return
+    }
+
+    const client = new Client({
+      brokerURL: wsUrl,
+      connectHeaders: {
+        Authorization: `Bearer ${auth.accessToken}`,
+      },
+      reconnectDelay: 4000,
+      onConnect: () => {
+        setThreadsLoading(true)
+        setThreadsError(null)
+        client.subscribe('/user/queue/threads', (message) => {
+          try {
+            const payload = JSON.parse(message.body) as ThreadListResponse
+            setThreads(payload.threads ?? [])
+          } catch (error) {
+            setThreadsError('Could not parse chat list.')
+          } finally {
+            setThreadsLoading(false)
+          }
+        })
+        client.publish({ destination: '/app/threads/list', body: '' })
+      },
+      onStompError: (frame) => {
+        setThreadsError(frame.headers.message || 'Could not load chats.')
+        setThreadsLoading(false)
+      },
+      onWebSocketError: () => {
+        setThreadsError('Could not connect to chat service.')
+        setThreadsLoading(false)
+      },
+    })
+
+    stompClientRef.current = client
+    client.activate()
+
+    return () => {
+      client.deactivate()
+      stompClientRef.current = null
+    }
+  }, [auth, wsUrl])
+
+  const handleLoginSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setLoginError(null)
+    setLoginLoading(true)
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formState),
+      })
+
+      if (!response.ok) {
+        throw new Error('Invalid login or password.')
+      }
+
+      const payload = (await response.json()) as LoginResponse
+      setAuth({
+        login: formState.login,
+        accessToken: payload.accessToken,
+        refreshToken: payload.refreshToken,
+        profile: payload,
+      })
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : 'Login failed.')
+    } finally {
+      setLoginLoading(false)
+    }
+  }
+
+  const handleLogout = () => {
+    setAuth(null)
+    if (stompClientRef.current) {
+      stompClientRef.current.deactivate()
+      stompClientRef.current = null
+    }
+    setThreads([])
+    setFormState({ login: '', password: '' })
+  }
 
   return (
     <div className="app">
-      <main className="welcome-card">
-        <header className="welcome-header">
-          <div className="badge">WeeChat</div>
-          <h1>Welcome back!</h1>
-          <p className="subtitle">
-            A safe, playful space for families to chat together.
-          </p>
-        </header>
-
-        <section className="role-switch">
-          <p className="section-label">I am logging in as:</p>
-          <div className={`switcher ${role}`}>
-            <button
-              className={role === 'parent' ? 'active' : ''}
-              onClick={() => setRole('parent')}
-              type="button"
-              aria-pressed={role === 'parent'}
-            >
-              Parent
-            </button>
-            <button
-              className={role === 'child' ? 'active' : ''}
-              onClick={() => setRole('child')}
-              type="button"
-              aria-pressed={role === 'child'}
-            >
-              Child
-            </button>
-            <span className="switch-pill" aria-hidden="true" />
-          </div>
-        </section>
-
-        {role === 'parent' ? (
-          <section className="form-panel">
-            <h2>Parent login</h2>
-            <p className="hint">
-              Use your account details. Two-factor will be offered next.
+      {!auth ? (
+        <main className="welcome-card">
+          <header className="welcome-header">
+            <div className="badge">WeeChat</div>
+            <h1>Welcome back!</h1>
+            <p className="subtitle">
+              Sign in to pick up your family chats where you left off.
             </p>
-            <form className="form-grid">
-              <label className="field">
-                Username
-                <input type="text" placeholder="parent@example.com" />
-              </label>
-              <label className="field">
-                Password
-                <input type="password" placeholder="Your secure password" />
-              </label>
-              <div className="row">
-                <label className="checkbox">
-                  <input type="checkbox" />
-                  Remember me
-                </label>
-                <button className="link" type="button">
-                  Forgot password?
-                </button>
-              </div>
-              <button className="primary" type="button">
-                Continue
-              </button>
-            </form>
-          </section>
-        ) : (
-          <section className="form-panel">
-            <h2>Child login</h2>
-            <p className="hint">
-              Scan the QR code your parent created, or type the backup code.
-            </p>
-            <div className="child-login">
-              <div className="qr-card">
-                <div className="qr-frame">
-                  <div className="qr-dot" />
-                  <div className="qr-dot" />
-                  <div className="qr-dot" />
-                  <div className="qr-dot" />
-                </div>
-                <p>Point the camera here</p>
-              </div>
-              <div className="code-card">
-                <label className="field">
-                  Backup code
-                  <input type="text" placeholder="ABC-123-XYZ" />
-                </label>
-                <button className="primary" type="button">
-                  Start chatting
-                </button>
-                <button className="ghost" type="button">
-                  Need help from a parent?
-                </button>
-              </div>
+          </header>
+
+          <AuthPanel
+            formState={formState}
+            loginError={loginError}
+            loginLoading={loginLoading}
+            onFormChange={(field, value) =>
+              setFormState((prev) => ({ ...prev, [field]: value }))
+            }
+            onLoginSubmit={handleLoginSubmit}
+          />
+        </main>
+      ) : (
+        <main className="chat-shell">
+          <header className="chat-header">
+            <div className="chat-header-text">
+              <div className="badge">WeeChat</div>
+              <h1>Chats</h1>
+              <p className="subtitle">Only the threads you belong to are listed.</p>
             </div>
-          </section>
-        )}
-      </main>
+            <div className="chat-user">
+              <div className="user-meta">
+                <span className="user-login">{auth.profile.login}</span>
+                <button className="link" type="button" onClick={handleLogout}>
+                  Sign out
+                </button>
+              </div>
+              {auth.profile.avatarUrl ? (
+                <img
+                  className="avatar"
+                  src={auth.profile.avatarUrl}
+                  alt={`${auth.profile.login} avatar`}
+                />
+              ) : (
+                <div className="avatar avatar-fallback">
+                  {auth.profile.login.slice(0, 2).toUpperCase()}
+                </div>
+              )}
+            </div>
+          </header>
+
+          <ThreadList
+            threads={threads}
+            loading={threadsLoading}
+            error={threadsError}
+          />
+        </main>
+      )}
     </div>
   )
 }

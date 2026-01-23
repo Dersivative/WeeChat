@@ -63,10 +63,10 @@ CREATE TABLE IF NOT EXISTS account_block (
 );
 
 INSERT INTO account (id, avatar_url, display_name) VALUES
-	('11111111-1111-1111-1111-111111111111', 'https://cdn.example.com/avatars/alice.png', 'Alice'),
-	('22222222-2222-2222-2222-222222222222', 'https://cdn.example.com/avatars/bob.png', 'Bob'),
-	('33333333-3333-3333-3333-333333333333', 'https://cdn.example.com/avatars/kaja.png', 'Kaja'),
-	('44444444-4444-4444-4444-444444444444', 'https://cdn.example.com/avatars/tomek.png', 'Tomek')
+	('11111111-1111-1111-1111-111111111111', 'alice.png', 'Alice'),
+	('22222222-2222-2222-2222-222222222222', 'bob.png', 'Bob'),
+	('33333333-3333-3333-3333-333333333333', 'kaja.png', 'Kaja'),
+	('44444444-4444-4444-4444-444444444444', 'tomek.png', 'Tomek')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO app_user (id, login, password_hash, two_factor_enabled, two_factor_secret) VALUES

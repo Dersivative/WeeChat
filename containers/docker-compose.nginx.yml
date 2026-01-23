@@ -1,0 +1,11 @@
+version: "3.9"
+
+services:
+  nginx:
+    image: nginx:1.27
+    container_name: chat-nginx
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/html:/usr/share/nginx/html:ro

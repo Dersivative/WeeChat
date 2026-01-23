@@ -2,6 +2,7 @@ package com.weetalk.chat;
 
 import com.weetalk.chat.auth.UserRepository;
 import com.weetalk.chat.domain.User;
+import com.weetalk.chat.media.MediaUrlResolver;
 import com.weetalk.chat.mongo.ThreadDoc;
 import com.weetalk.chat.mongo.ThreadMember;
 import com.weetalk.chat.mongo.ThreadRepository;
@@ -38,6 +39,8 @@ class AuthAndThreadControllerTests {
 	private PasswordEncoder passwordEncoder;
 	@Autowired
 	private ObjectMapper objectMapper;
+	@Autowired
+	private MediaUrlResolver mediaUrlResolver;
 	private RestTemplate restTemplate;
 	@LocalServerPort
 	private int port;
@@ -56,7 +59,7 @@ class AuthAndThreadControllerTests {
 		alice.setDisplayName("Alice");
 		alice.setPasswordHash(passwordEncoder.encode("secret"));
 		alice.setTwoFactorEnabled(false);
-		alice.setAvatarUrl("https://cdn.example.com/avatars/alice.png");
+		alice.setAvatarFileName("alice.png");
 		alice = userRepository.save(alice);
 
 		bob = new User();
@@ -91,11 +94,12 @@ class AuthAndThreadControllerTests {
 		ResponseEntity<String> response = restTemplate.postForEntity(url("/api/auth/login"), request, String.class);
 
 		Assertions.assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
+		String expectedAvatarUrl = mediaUrlResolver.resolveAvatarUrl("alice.png");
 		Assertions.assertThat(response.getBody())
 			.contains(alice.getId().toString())
 			.contains("\"login\":\"alice\"")
 			.contains("\"twoFactorEnabled\":false")
-			.contains("https://cdn.example.com/avatars/alice.png");
+			.contains(expectedAvatarUrl);
 	}
 
 	@Test

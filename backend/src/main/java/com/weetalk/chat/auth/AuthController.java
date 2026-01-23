@@ -1,6 +1,7 @@
 package com.weetalk.chat.auth;
 
 import com.weetalk.chat.domain.User;
+import com.weetalk.chat.media.MediaUrlResolver;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,11 +17,18 @@ public class AuthController {
 	private final AuthService authService;
 	private final JwtService jwtService;
 	private final UserRepository userRepository;
+	private final MediaUrlResolver mediaUrlResolver;
 
-	public AuthController(AuthService authService, JwtService jwtService, UserRepository userRepository) {
+	public AuthController(
+		AuthService authService,
+		JwtService jwtService,
+		UserRepository userRepository,
+		MediaUrlResolver mediaUrlResolver
+	) {
 		this.authService = authService;
 		this.jwtService = jwtService;
 		this.userRepository = userRepository;
+		this.mediaUrlResolver = mediaUrlResolver;
 	}
 
 	@PostMapping("/login")
@@ -32,7 +40,7 @@ public class AuthController {
 			user.getId(),
 			user.getLogin(),
 			user.isTwoFactorEnabled(),
-			user.getAvatarUrl(),
+			mediaUrlResolver.resolveAvatarUrl(user.getAvatarFileName()),
 			accessToken,
 			refreshToken
 		);

@@ -4,6 +4,7 @@ import com.weetalk.chat.auth.AccountRepository;
 import com.weetalk.chat.domain.Account;
 import com.weetalk.chat.domain.MessageDeliveryState;
 import com.weetalk.chat.domain.MessageDeliveryStatus;
+import com.weetalk.chat.media.MediaUrlResolver;
 import com.weetalk.chat.mongo.MessageDoc;
 import com.weetalk.chat.mongo.MessageRepository;
 import com.weetalk.chat.mongo.ThreadDoc;
@@ -29,15 +30,18 @@ public class ThreadListService {
 	private final ThreadRepository threadRepository;
 	private final MessageRepository messageRepository;
 	private final AccountRepository accountRepository;
+	private final MediaUrlResolver mediaUrlResolver;
 
 	public ThreadListService(
 		ThreadRepository threadRepository,
 		MessageRepository messageRepository,
-		AccountRepository accountRepository
+		AccountRepository accountRepository,
+		MediaUrlResolver mediaUrlResolver
 	) {
 		this.threadRepository = threadRepository;
 		this.messageRepository = messageRepository;
 		this.accountRepository = accountRepository;
+		this.mediaUrlResolver = mediaUrlResolver;
 	}
 
 	public ThreadListResponse listThreads(UUID viewerAccountId) {
@@ -211,8 +215,8 @@ public class ThreadListService {
 
 	private String avatarFor(Map<UUID, Account> accounts, UUID accountId) {
 		Account account = accounts.get(accountId);
-		if (account != null && account.getAvatarUrl() != null && !account.getAvatarUrl().isBlank()) {
-			return account.getAvatarUrl();
+		if (account != null && account.getAvatarFileName() != null && !account.getAvatarFileName().isBlank()) {
+			return mediaUrlResolver.resolveAvatarUrl(account.getAvatarFileName());
 		}
 		return null;
 	}

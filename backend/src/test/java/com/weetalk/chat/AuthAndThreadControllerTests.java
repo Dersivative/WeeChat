@@ -1,11 +1,11 @@
 package com.weetalk.chat;
 
-import com.weetalk.chat.auth.UserRepository;
-import com.weetalk.chat.domain.User;
+import com.weetalk.chat.accounts.domain.User;
+import com.weetalk.chat.accounts.infrastructure.UserRepository;
 import com.weetalk.chat.media.MediaUrlResolver;
-import com.weetalk.chat.mongo.ThreadDoc;
-import com.weetalk.chat.mongo.ThreadMember;
-import com.weetalk.chat.mongo.ThreadRepository;
+import com.weetalk.chat.threads.infrastructure.mongo.ThreadDoc;
+import com.weetalk.chat.threads.infrastructure.mongo.ThreadMember;
+import com.weetalk.chat.threads.infrastructure.mongo.ThreadRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;

@@ -1,7 +1,7 @@
 package com.weetalk.chat.ws;
 
-import com.weetalk.chat.auth.AuthUserPrincipal;
-import com.weetalk.chat.auth.JwtService;
+import com.weetalk.chat.auth.security.AuthUserPrincipal;
+import com.weetalk.chat.auth.security.JwtService;
 import java.util.List;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;

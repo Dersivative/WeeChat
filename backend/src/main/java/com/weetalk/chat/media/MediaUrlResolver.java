@@ -1,6 +1,6 @@
 package com.weetalk.chat.media;
 
-import com.weetalk.chat.domain.AttachmentKind;
+import com.weetalk.chat.messages.domain.AttachmentKind;
 import org.springframework.stereotype.Component;
 
 @Component

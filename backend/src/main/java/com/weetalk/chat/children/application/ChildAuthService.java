@@ -3,12 +3,14 @@ package com.weetalk.chat.children.application;
 import com.weetalk.chat.accounts.domain.User;
 import com.weetalk.chat.accounts.infrastructure.UserRepository;
 import com.weetalk.chat.children.api.dto.ChildLoginTokenResponse;
+import com.weetalk.chat.children.api.dto.ChildLoginResponse;
 import com.weetalk.chat.children.api.dto.ChildResponse;
 import com.weetalk.chat.children.api.dto.CreateChildRequest;
 import com.weetalk.chat.children.domain.Child;
 import com.weetalk.chat.children.domain.ChildLoginCodeType;
 import com.weetalk.chat.children.infrastructure.ChildRepository;
 import com.weetalk.chat.media.MediaUrlResolver;
+import com.weetalk.chat.auth.security.JwtService;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
@@ -31,6 +33,7 @@ public class ChildAuthService {
 	private final ChildRepository childRepository;
 	private final PasswordEncoder passwordEncoder;
 	private final MediaUrlResolver mediaUrlResolver;
+	private final JwtService jwtService;
 	private final SecureRandom secureRandom = new SecureRandom();
 	private final Base64.Encoder base64UrlEncoder = Base64.getUrlEncoder().withoutPadding();
 
@@ -38,12 +41,14 @@ public class ChildAuthService {
 		UserRepository userRepository,
 		ChildRepository childRepository,
 		PasswordEncoder passwordEncoder,
-		MediaUrlResolver mediaUrlResolver
+		MediaUrlResolver mediaUrlResolver,
+		JwtService jwtService
 	) {
 		this.userRepository = userRepository;
 		this.childRepository = childRepository;
 		this.passwordEncoder = passwordEncoder;
 		this.mediaUrlResolver = mediaUrlResolver;
+		this.jwtService = jwtService;
 	}
 
 	@Transactional
@@ -84,6 +89,26 @@ public class ChildAuthService {
 		return new ChildLoginTokenResponse(token, expiresAt);
 	}
 
+	@Transactional
+	public ChildLoginResponse loginWithToken(UUID childId, String token) {
+		Child child = childRepository.findById(childId)
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid child login"));
+
+		String normalizedToken = token == null ? null : token.trim();
+		if (!isValidLoginToken(child, normalizedToken)) {
+			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid child login");
+		}
+
+		clearLoginToken(child);
+		String accessToken = jwtService.generateAccessToken(child.getId(), child.getDisplayName());
+		return new ChildLoginResponse(
+			child.getId(),
+			child.getDisplayName(),
+			mediaUrlResolver.resolveAvatarUrl(child.getAvatarFileName()),
+			accessToken
+		);
+	}
+
 	private User loadParent(UUID parentId) {
 		return userRepository.findById(parentId)
 			.orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Parent account required"));
@@ -105,6 +130,26 @@ public class ChildAuthService {
 		child.setLoginCodeHash(passwordEncoder.encode(token));
 		child.setLoginCodeType(type);
 		child.setLoginCodeExpiresAt(expiresAt);
+		childRepository.save(child);
+	}
+
+	private boolean isValidLoginToken(Child child, String token) {
+		if (token == null || token.isBlank()) {
+			return false;
+		}
+		if (child.getLoginCodeHash() == null || child.getLoginCodeExpiresAt() == null) {
+			return false;
+		}
+		if (Instant.now().isAfter(child.getLoginCodeExpiresAt())) {
+			return false;
+		}
+		return passwordEncoder.matches(token, child.getLoginCodeHash());
+	}
+
+	private void clearLoginToken(Child child) {
+		child.setLoginCodeHash(null);
+		child.setLoginCodeType(null);
+		child.setLoginCodeExpiresAt(null);
 		childRepository.save(child);
 	}
 

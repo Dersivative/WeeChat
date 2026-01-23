@@ -18,7 +18,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -115,11 +114,10 @@ public class ThreadListService {
 		}
 
 		if (members.size() == 2) {
-			Optional<ThreadMember> other = members.stream()
-				.filter(member -> !viewerAccountId.equals(member.getAccountId()))
-				.findFirst();
-			if (other.isPresent()) {
-				return displayNameFor(accounts, other.get().getAccountId());
+			for (ThreadMember member : members) {
+				if (!viewerAccountId.equals(member.getAccountId())) {
+					return displayNameFor(accounts, member.getAccountId());
+				}
 			}
 		}
 

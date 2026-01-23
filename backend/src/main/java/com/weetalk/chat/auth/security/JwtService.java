@@ -49,11 +49,15 @@ public class JwtService {
 	}
 
 	public String generateAccessToken(User user) {
-		return generateToken(user, TOKEN_TYPE_ACCESS, accessTokenTtl);
+		return generateToken(user.getId(), user.getLogin(), TOKEN_TYPE_ACCESS, accessTokenTtl);
 	}
 
 	public String generateRefreshToken(User user) {
-		return generateToken(user, TOKEN_TYPE_REFRESH, refreshTokenTtl);
+		return generateToken(user.getId(), user.getLogin(), TOKEN_TYPE_REFRESH, refreshTokenTtl);
+	}
+
+	public String generateAccessToken(UUID accountId, String login) {
+		return generateToken(accountId, login, TOKEN_TYPE_ACCESS, accessTokenTtl);
 	}
 
 	public AuthUserPrincipal parseAccessToken(String token) {
@@ -64,11 +68,11 @@ public class JwtService {
 		return parseToken(token, TOKEN_TYPE_REFRESH);
 	}
 
-	private String generateToken(User user, String tokenType, Duration ttl) {
+	private String generateToken(UUID accountId, String login, String tokenType, Duration ttl) {
 		Instant now = Instant.now();
 		Map<String, Object> payload = new LinkedHashMap<>();
-		payload.put("sub", user.getId().toString());
-		payload.put("login", user.getLogin());
+		payload.put("sub", accountId.toString());
+		payload.put("login", login);
 		payload.put("iat", now.getEpochSecond());
 		payload.put("exp", now.plus(ttl).getEpochSecond());
 		payload.put("token_type", tokenType);

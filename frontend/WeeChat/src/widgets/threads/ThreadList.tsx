@@ -4,9 +4,11 @@ type ThreadListProps = {
   threads: ThreadListItem[]
   loading: boolean
   error: string | null
+  selectedThreadId: string | null
+  onSelectThread: (threadId: string) => void
 }
 
-function ThreadList({ threads, loading, error }: ThreadListProps) {
+function ThreadList({ threads, loading, error, selectedThreadId, onSelectThread }: ThreadListProps) {
   const formatTimestamp = (value?: string | null) => {
     if (!value) {
       return 'No activity yet'
@@ -24,9 +26,13 @@ function ThreadList({ threads, loading, error }: ThreadListProps) {
         <p className="status">No chats yet. Start a new conversation.</p>
       ) : null}
       {threads.map((thread) => (
-        <article
-          className={`thread-card ${thread.unread ? 'unread' : ''}`}
+        <button
+          className={`thread-card ${thread.unread ? 'unread' : ''} ${
+            thread.threadId === selectedThreadId ? 'active' : ''
+          }`}
           key={thread.threadId}
+          type="button"
+          onClick={() => onSelectThread(thread.threadId)}
         >
           <div className="thread-avatar">
             {thread.avatarUrls.length > 1 ? (
@@ -53,7 +59,7 @@ function ThreadList({ threads, loading, error }: ThreadListProps) {
           <div className="thread-meta">
             <span>{formatTimestamp(thread.lastMessageAt)}</span>
           </div>
-        </article>
+        </button>
       ))}
     </section>
   )

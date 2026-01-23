@@ -1,6 +1,8 @@
 package com.weetalk.chat.children.api;
 
 import com.weetalk.chat.auth.security.AuthUserPrincipal;
+import com.weetalk.chat.children.api.dto.ChildLoginRequest;
+import com.weetalk.chat.children.api.dto.ChildLoginResponse;
 import com.weetalk.chat.children.api.dto.ChildLoginTokenResponse;
 import com.weetalk.chat.children.api.dto.ChildResponse;
 import com.weetalk.chat.children.api.dto.CreateChildRequest;
@@ -48,5 +50,10 @@ public class ChildController {
 		@PathVariable UUID childId
 	) {
 		return ResponseEntity.ok(childAuthService.generateTextCode(principal.getAccountId(), childId));
+	}
+
+	@PostMapping("/login")
+	public ResponseEntity<ChildLoginResponse> login(@Valid @RequestBody ChildLoginRequest request) {
+		return ResponseEntity.ok(childAuthService.loginWithToken(request.getChildId(), request.getToken()));
 	}
 }

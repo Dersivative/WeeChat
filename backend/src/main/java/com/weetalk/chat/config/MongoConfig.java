@@ -19,6 +19,8 @@ public class MongoConfig {
 		if (uri == null || uri.isBlank()) {
 			uri = environment.getProperty("spring.mongodb.uri");
 		}
+		String configuredDatabase = environment.getProperty("spring.data.mongodb.database",
+			environment.getProperty("spring.mongodb.database"));
 		if (uri == null || uri.isBlank()) {
 			String host = environment.getProperty("spring.data.mongodb.host",
 				environment.getProperty("spring.mongodb.host", "localhost"));
@@ -48,11 +50,35 @@ public class MongoConfig {
 			}
 		}
 
+		uri = normalizeDatabase(uri, configuredDatabase);
+
 		MongoClientSettings settings = MongoClientSettings.builder()
 			.applyConnectionString(new ConnectionString(uri))
 			.uuidRepresentation(UuidRepresentation.STANDARD)
 			.build();
 
 		return MongoClients.create(settings);
+	}
+
+	private String normalizeDatabase(String uri, String database) {
+		if (uri == null || uri.isBlank() || database == null || database.isBlank()) {
+			return uri;
+		}
+		int schemeIndex = uri.indexOf("://");
+		if (schemeIndex < 0) {
+			return uri;
+		}
+		int queryIndex = uri.indexOf("?", schemeIndex + 3);
+		int pathIndex = uri.indexOf("/", schemeIndex + 3);
+		int pathEnd = queryIndex >= 0 ? queryIndex : uri.length();
+		boolean hasDatabase = pathIndex >= 0 && pathIndex < pathEnd;
+		if (!hasDatabase) {
+			return uri.substring(0, pathEnd) + "/" + database + uri.substring(pathEnd);
+		}
+		String currentDatabase = uri.substring(pathIndex + 1, pathEnd);
+		if (currentDatabase.isBlank() || "admin".equals(currentDatabase)) {
+			return uri.substring(0, pathIndex + 1) + database + uri.substring(pathEnd);
+		}
+		return uri;
 	}
 }

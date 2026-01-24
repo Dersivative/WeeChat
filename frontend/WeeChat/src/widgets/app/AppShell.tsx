@@ -1,5 +1,5 @@
 import { Client } from '@stomp/stompjs'
-import { type FormEvent, type TouchEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { type FormEvent, type TouchEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './app-shell.css'
 import { AuthPanel, WelcomeHeader } from '../auth'
 import { ChatHeader } from '../chat'
@@ -9,8 +9,35 @@ import { ThreadList, ThreadView } from '../threads'
 import type { AccountType, AuthState, ChildLoginResponse, LoginResponse } from '../../entities/account'
 import type { MessageItem } from '../../entities/message'
 import type { ThreadListItem, ThreadListResponse } from '../../entities/thread'
+import type { AuthFetch } from '../../shared/apiClient'
 
 const AUTH_STORAGE_KEY = 'weechat.auth'
+const TOKEN_REFRESH_BUFFER_SECONDS = 60
+const TOKEN_REFRESH_INTERVAL_MS = 30_000
+
+const decodeJwtPayload = (token: string): { exp?: number } | null => {
+  try {
+    const payload = token.split('.')[1]
+    if (!payload) {
+      return null
+    }
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
+    const decoded = window.atob(padded)
+    return JSON.parse(decoded) as { exp?: number }
+  } catch {
+    return null
+  }
+}
+
+const isTokenExpiringSoon = (token: string, bufferSeconds: number) => {
+  const payload = decodeJwtPayload(token)
+  if (!payload?.exp) {
+    return false
+  }
+  const nowSeconds = Date.now() / 1000
+  return nowSeconds >= payload.exp - bufferSeconds
+}
 
 function AppShell() {
   const apiBaseUrl =
@@ -34,6 +61,7 @@ function AppShell() {
   const [incomingMessage, setIncomingMessage] = useState<MessageItem | null>(null)
   const stompClientRef = useRef<Client | null>(null)
   const touchStartRef = useRef<{ x: number; y: number } | null>(null)
+  const refreshPromiseRef = useRef<Promise<AuthState | null> | null>(null)
 
   const wsUrl = useMemo(() => {
     const base = apiBaseUrl || window.location.origin
@@ -65,6 +93,94 @@ function AppShell() {
     }
     window.localStorage.removeItem(AUTH_STORAGE_KEY)
   }, [auth])
+
+  const refreshTokens = useCallback(async () => {
+    if (!auth?.refreshToken) {
+      return auth
+    }
+    if (refreshPromiseRef.current) {
+      return refreshPromiseRef.current
+    }
+    refreshPromiseRef.current = (async () => {
+      const response = await fetch(`${apiBaseUrl}/api/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refreshToken: auth.refreshToken }),
+      })
+      if (!response.ok) {
+        throw new Error('Could not refresh session.')
+      }
+      const payload = (await response.json()) as { accessToken: string; refreshToken: string }
+      const nextAuth = {
+        ...auth,
+        accessToken: payload.accessToken,
+        refreshToken: payload.refreshToken,
+        profile: {
+          ...auth.profile,
+          accessToken: payload.accessToken,
+          refreshToken: payload.refreshToken,
+        },
+      }
+      setAuth(nextAuth)
+      return nextAuth
+    })()
+      .catch((error) => {
+        setAuth(null)
+        throw error
+      })
+      .finally(() => {
+        refreshPromiseRef.current = null
+      })
+    return refreshPromiseRef.current
+  }, [apiBaseUrl, auth])
+
+  const authFetch = useCallback<AuthFetch>(
+    async (url, init) => {
+      if (!auth) {
+        throw new Error('Not authenticated.')
+      }
+      let activeAuth = auth
+      if (auth.refreshToken && isTokenExpiringSoon(auth.accessToken, TOKEN_REFRESH_BUFFER_SECONDS)) {
+        const refreshed = await refreshTokens()
+        if (refreshed) {
+          activeAuth = refreshed
+        }
+      }
+      const headers = new Headers(init?.headers)
+      headers.set('Authorization', `Bearer ${activeAuth.accessToken}`)
+      if (init?.body && !headers.has('Content-Type')) {
+        headers.set('Content-Type', 'application/json')
+      }
+      const response = await fetch(url, { ...init, headers })
+      if (response.status === 401 && auth.refreshToken) {
+        const refreshed = await refreshTokens()
+        if (refreshed) {
+          const retryHeaders = new Headers(init?.headers)
+          retryHeaders.set('Authorization', `Bearer ${refreshed.accessToken}`)
+          if (init?.body && !retryHeaders.has('Content-Type')) {
+            retryHeaders.set('Content-Type', 'application/json')
+          }
+          return fetch(url, { ...init, headers: retryHeaders })
+        }
+      }
+      return response
+    },
+    [auth, refreshTokens]
+  )
+
+  useEffect(() => {
+    if (!auth?.refreshToken) {
+      return
+    }
+    const interval = window.setInterval(() => {
+      if (auth.refreshToken && isTokenExpiringSoon(auth.accessToken, TOKEN_REFRESH_BUFFER_SECONDS)) {
+        void refreshTokens()
+      }
+    }, TOKEN_REFRESH_INTERVAL_MS)
+    return () => window.clearInterval(interval)
+  }, [auth, refreshTokens])
 
   useEffect(() => {
     if (!auth) {
@@ -357,23 +473,18 @@ function AppShell() {
                   onSelectThread={setSelectedThreadId}
                 />
               </section>
-              <ThreadView
-                thread={selectedThread}
-                auth={auth}
-                apiBaseUrl={apiBaseUrl}
-                incomingMessage={incomingMessage}
-              />
+      <ThreadView thread={selectedThread} auth={auth} authFetch={authFetch} apiBaseUrl={apiBaseUrl} incomingMessage={incomingMessage} />
             </div>
           ) : (
             <div className="panel-body">
               {activePanel === 'manage-children' ? (
-                <ChildrenManager auth={auth} apiBaseUrl={apiBaseUrl} />
+                <ChildrenManager apiBaseUrl={apiBaseUrl} authFetch={authFetch} />
               ) : null}
               {activePanel === 'moderation-settings' ? (
-                <ModerationSettingsPanel auth={auth} apiBaseUrl={apiBaseUrl} />
+                <ModerationSettingsPanel apiBaseUrl={apiBaseUrl} authFetch={authFetch} />
               ) : null}
               {activePanel === 'moderation-queue' ? (
-                <ModerationQueuePanel auth={auth} apiBaseUrl={apiBaseUrl} />
+                <ModerationQueuePanel apiBaseUrl={apiBaseUrl} authFetch={authFetch} />
               ) : null}
             </div>
           )}

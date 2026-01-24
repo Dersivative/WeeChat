@@ -1,19 +1,21 @@
-import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
 import type { AuthState } from '../../entities/account'
 import type { MessageItem, MessageListResponse } from '../../entities/message'
 import type { ThreadListItem } from '../../entities/thread'
+import type { AuthFetch } from '../../shared/apiClient'
 
 type ThreadViewProps = {
   thread: ThreadListItem | null
   auth: AuthState
   apiBaseUrl: string
+  authFetch: AuthFetch
   incomingMessage?: MessageItem | null
 }
 
 const PAGE_SIZE = 10
 const MESSAGE_UNAVAILABLE = 'Message unavailable'
 
-function ThreadView({ thread, auth, apiBaseUrl, incomingMessage = null }: ThreadViewProps) {
+function ThreadView({ thread, auth, apiBaseUrl, authFetch, incomingMessage = null }: ThreadViewProps) {
   const [messages, setMessages] = useState<MessageItem[]>([])
   const [loading, setLoading] = useState(false)
   const [loadingOlder, setLoadingOlder] = useState(false)
@@ -24,14 +26,6 @@ function ThreadView({ thread, auth, apiBaseUrl, incomingMessage = null }: Thread
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const listRef = useRef<HTMLDivElement | null>(null)
-
-  const headers = useMemo(
-    () => ({
-      Authorization: `Bearer ${auth.accessToken}`,
-      'Content-Type': 'application/json',
-    }),
-    [auth.accessToken]
-  )
 
   useEffect(() => {
     setMessages([])
@@ -79,10 +73,12 @@ function ThreadView({ thread, auth, apiBaseUrl, incomingMessage = null }: Thread
 
     const beforeQuery = initial ? '' : nextBefore ? `&before=${encodeURIComponent(nextBefore)}` : ''
     try {
-      const response = await fetch(
+      const response = await authFetch(
         `${apiBaseUrl}/api/threads/${thread.threadId}/messages?limit=${PAGE_SIZE}${beforeQuery}`,
         {
-          headers,
+          headers: {
+            'Content-Type': 'application/json',
+          },
         }
       )
       if (!response.ok) {
@@ -146,9 +142,11 @@ function ThreadView({ thread, auth, apiBaseUrl, incomingMessage = null }: Thread
     setSending(true)
     setSendError(null)
     try {
-      const response = await fetch(`${apiBaseUrl}/api/threads/${thread.threadId}/messages`, {
+      const response = await authFetch(`${apiBaseUrl}/api/threads/${thread.threadId}/messages`, {
         method: 'POST',
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ text: trimmed }),
       })
       if (!response.ok) {

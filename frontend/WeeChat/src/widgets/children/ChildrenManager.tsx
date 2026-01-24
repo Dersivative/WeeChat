@@ -1,15 +1,15 @@
-import { type FormEvent, useEffect, useMemo, useState } from 'react'
-import type { AuthState } from '../../entities/account'
+import { type FormEvent, useCallback, useEffect, useState } from 'react'
 import type { ChildProfile, ModerationLevel } from '../../entities/child'
+import type { AuthFetch } from '../../shared/apiClient'
 
 type ChildrenManagerProps = {
-  auth: AuthState
   apiBaseUrl: string
+  authFetch: AuthFetch
 }
 
 const DEFAULT_LEVEL: ModerationLevel = 'MANUAL'
 
-function ChildrenManager({ auth, apiBaseUrl }: ChildrenManagerProps) {
+function ChildrenManager({ apiBaseUrl, authFetch }: ChildrenManagerProps) {
   const [children, setChildren] = useState<ChildProfile[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -25,19 +25,11 @@ function ChildrenManager({ auth, apiBaseUrl }: ChildrenManagerProps) {
   const [loginCodeError, setLoginCodeError] = useState<string | null>(null)
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null)
 
-  const headers = useMemo(
-    () => ({
-      Authorization: `Bearer ${auth.accessToken}`,
-      'Content-Type': 'application/json',
-    }),
-    [auth.accessToken]
-  )
-
-  const loadChildren = async () => {
+  const loadChildren = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch(`${apiBaseUrl}/api/children`, { headers })
+      const response = await authFetch(`${apiBaseUrl}/api/children`)
       if (!response.ok) {
         throw new Error('Could not load children.')
       }
@@ -48,11 +40,11 @@ function ChildrenManager({ auth, apiBaseUrl }: ChildrenManagerProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [apiBaseUrl, authFetch])
 
   useEffect(() => {
     void loadChildren()
-  }, [])
+  }, [loadChildren])
 
   useEffect(() => {
     if (!loginCodeExpiresAt) {
@@ -78,9 +70,11 @@ function ChildrenManager({ auth, apiBaseUrl }: ChildrenManagerProps) {
     setSaving(true)
     setError(null)
     try {
-      const response = await fetch(`${apiBaseUrl}/api/children`, {
+      const response = await authFetch(`${apiBaseUrl}/api/children`, {
         method: 'POST',
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           displayName: displayName.trim(),
           avatarFileName: avatarFileName.trim() || null,
@@ -106,9 +100,8 @@ function ChildrenManager({ auth, apiBaseUrl }: ChildrenManagerProps) {
     setSaving(true)
     setError(null)
     try {
-      const response = await fetch(`${apiBaseUrl}/api/children/${childId}`, {
+      const response = await authFetch(`${apiBaseUrl}/api/children/${childId}`, {
         method: 'DELETE',
-        headers,
       })
       if (!response.ok) {
         throw new Error('Could not delete child.')
@@ -141,9 +134,8 @@ function ChildrenManager({ auth, apiBaseUrl }: ChildrenManagerProps) {
     setLoginCodeLoading(true)
     setRemainingSeconds(null)
     try {
-      const response = await fetch(`${apiBaseUrl}/api/children/${loginCodeChild.id}/login-code`, {
+      const response = await authFetch(`${apiBaseUrl}/api/children/${loginCodeChild.id}/login-code`, {
         method: 'POST',
-        headers,
       })
       if (!response.ok) {
         throw new Error('Could not generate login code.')

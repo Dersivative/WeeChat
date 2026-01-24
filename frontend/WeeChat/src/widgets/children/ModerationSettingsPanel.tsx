@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
-import type { AuthState } from '../../entities/account'
+import { useCallback, useEffect, useState } from 'react'
 import type { ChildProfile, ModerationLevel } from '../../entities/child'
 import type { ModerationLevelOption } from '../../entities/moderation'
+import type { AuthFetch } from '../../shared/apiClient'
 
 type ModerationSettingsPanelProps = {
-  auth: AuthState
   apiBaseUrl: string
+  authFetch: AuthFetch
 }
 
 const LEVEL_OPTIONS: ModerationLevelOption[] = [
@@ -26,7 +26,7 @@ const LEVEL_OPTIONS: ModerationLevelOption[] = [
   },
 ]
 
-function ModerationSettingsPanel({ auth, apiBaseUrl }: ModerationSettingsPanelProps) {
+function ModerationSettingsPanel({ apiBaseUrl, authFetch }: ModerationSettingsPanelProps) {
   const [children, setChildren] = useState<ChildProfile[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [selectedLevel, setSelectedLevel] = useState<ModerationLevel>('MANUAL')
@@ -34,19 +34,11 @@ function ModerationSettingsPanel({ auth, apiBaseUrl }: ModerationSettingsPanelPr
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const headers = useMemo(
-    () => ({
-      Authorization: `Bearer ${auth.accessToken}`,
-      'Content-Type': 'application/json',
-    }),
-    [auth.accessToken]
-  )
-
-  const loadChildren = async () => {
+  const loadChildren = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch(`${apiBaseUrl}/api/children`, { headers })
+      const response = await authFetch(`${apiBaseUrl}/api/children`)
       if (!response.ok) {
         throw new Error('Could not load children.')
       }
@@ -61,11 +53,11 @@ function ModerationSettingsPanel({ auth, apiBaseUrl }: ModerationSettingsPanelPr
     } finally {
       setLoading(false)
     }
-  }
+  }, [apiBaseUrl, authFetch, selectedId])
 
   useEffect(() => {
     void loadChildren()
-  }, [])
+  }, [loadChildren])
 
   useEffect(() => {
     const selected = children.find((child) => child.id === selectedId)
@@ -81,9 +73,11 @@ function ModerationSettingsPanel({ auth, apiBaseUrl }: ModerationSettingsPanelPr
     setSaving(true)
     setError(null)
     try {
-      const response = await fetch(`${apiBaseUrl}/api/children/${selectedId}/moderation-level`, {
+      const response = await authFetch(`${apiBaseUrl}/api/children/${selectedId}/moderation-level`, {
         method: 'PUT',
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ moderationLevel: selectedLevel }),
       })
       if (!response.ok) {

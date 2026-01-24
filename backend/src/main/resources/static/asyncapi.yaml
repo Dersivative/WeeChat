@@ -31,6 +31,17 @@ channels:
         title: Thread list response
         payload:
           $ref: '#/components/schemas/ThreadListResponse'
+  /user/queue/messages:
+    subscribe:
+      summary: Receive realtime message deliveries.
+      description: |
+        Messages are sent to parents for every update and to children only
+        after a message is approved.
+      message:
+        name: MessageItemResponse
+        title: Realtime message payload
+        payload:
+          $ref: '#/components/schemas/MessageItemResponse'
 components:
   securitySchemes:
     bearerAuth:
@@ -76,3 +87,24 @@ components:
           type: array
           items:
             type: string
+    MessageItemResponse:
+      type: object
+      required:
+        - id
+        - threadId
+        - senderAccountId
+        - text
+        - createdAt
+      properties:
+        id:
+          type: string
+        threadId:
+          type: string
+        senderAccountId:
+          type: string
+          format: uuid
+        text:
+          type: string
+        createdAt:
+          type: string
+          format: date-time

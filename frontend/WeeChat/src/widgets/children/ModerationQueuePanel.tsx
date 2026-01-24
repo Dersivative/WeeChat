@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
-import type { AuthState } from '../../entities/account'
+import { useCallback, useEffect, useState } from 'react'
 import type { ChildProfile } from '../../entities/child'
 import type { ModerationQueueResponse, ModerationThread, ModerationMessage } from '../../entities/moderation'
+import type { AuthFetch } from '../../shared/apiClient'
 
 type ModerationQueuePanelProps = {
-  auth: AuthState
   apiBaseUrl: string
+  authFetch: AuthFetch
 }
 
-function ModerationQueuePanel({ auth, apiBaseUrl }: ModerationQueuePanelProps) {
+function ModerationQueuePanel({ apiBaseUrl, authFetch }: ModerationQueuePanelProps) {
   const [children, setChildren] = useState<ChildProfile[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [threads, setThreads] = useState<ModerationThread[]>([])
@@ -16,18 +16,10 @@ function ModerationQueuePanel({ auth, apiBaseUrl }: ModerationQueuePanelProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const headers = useMemo(
-    () => ({
-      Authorization: `Bearer ${auth.accessToken}`,
-      'Content-Type': 'application/json',
-    }),
-    [auth.accessToken]
-  )
-
-  const loadChildren = async () => {
+  const loadChildren = useCallback(async () => {
     setError(null)
     try {
-      const response = await fetch(`${apiBaseUrl}/api/children`, { headers })
+      const response = await authFetch(`${apiBaseUrl}/api/children`)
       if (!response.ok) {
         throw new Error('Could not load children.')
       }
@@ -39,13 +31,14 @@ function ModerationQueuePanel({ auth, apiBaseUrl }: ModerationQueuePanelProps) {
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Could not load children.')
     }
-  }
+  }, [apiBaseUrl, authFetch, selectedId])
 
-  const loadQueue = async (childId: string) => {
+  const loadQueue = useCallback(
+    async (childId: string) => {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch(`${apiBaseUrl}/api/children/${childId}/moderation-queue`, { headers })
+      const response = await authFetch(`${apiBaseUrl}/api/children/${childId}/moderation-queue`)
       if (!response.ok) {
         throw new Error('Could not load moderation queue.')
       }
@@ -61,11 +54,13 @@ function ModerationQueuePanel({ auth, apiBaseUrl }: ModerationQueuePanelProps) {
     } finally {
       setLoading(false)
     }
-  }
+    },
+    [apiBaseUrl, authFetch]
+  )
 
   useEffect(() => {
     void loadChildren()
-  }, [])
+  }, [loadChildren])
 
   useEffect(() => {
     if (selectedId) {
@@ -74,14 +69,13 @@ function ModerationQueuePanel({ auth, apiBaseUrl }: ModerationQueuePanelProps) {
       setThreads([])
       setSelectedThreadId(null)
     }
-  }, [selectedId])
+  }, [loadQueue, selectedId])
 
   const handleDecision = async (messageId: string, action: 'approve' | 'reject') => {
     setError(null)
     try {
-      const response = await fetch(`${apiBaseUrl}/api/messages/${messageId}/${action}`, {
+      const response = await authFetch(`${apiBaseUrl}/api/messages/${messageId}/${action}`, {
         method: 'POST',
-        headers,
       })
       if (!response.ok) {
         throw new Error('Could not update moderation status.')

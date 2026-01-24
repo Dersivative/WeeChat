@@ -248,6 +248,10 @@
   margin-bottom: 2rem;
 }
 
+.chat-view-switch {
+  margin-bottom: 1.5rem;
+}
+
 .chat-header-text h1 {
   margin: 0.6rem 0 0.3rem;
 }
@@ -387,6 +391,10 @@
   grid-template-columns: minmax(240px, 1fr) minmax(320px, 1.6fr);
   gap: 2rem;
   align-items: start;
+}
+
+.chat-body.friends-body {
+  grid-template-columns: 1fr;
 }
 
 .panel-body {
@@ -675,6 +683,13 @@
   display: grid;
   gap: 1rem;
 }
+
+.friends-panel {
+  display: grid;
+  gap: 1.5rem;
+  width: 100%;
+}
+
 
 .thread-view {
   background: #f9fbff;

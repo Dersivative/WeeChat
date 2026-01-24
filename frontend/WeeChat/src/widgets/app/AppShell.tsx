@@ -2,7 +2,8 @@ import { Client } from '@stomp/stompjs'
 import { type FormEvent, type TouchEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './app-shell.css'
 import { AuthPanel, WelcomeHeader } from '../auth'
-import { ChatHeader } from '../chat'
+import { ChatHeader, ChatViewSwitch } from '../chat'
+import { FriendsList } from '../friends'
 import { AccountMenu, type AccountPanel } from '../menu'
 import { ChildrenManager, ModerationQueuePanel, ModerationSettingsPanel } from '../children'
 import { ThreadList, ThreadView } from '../threads'
@@ -53,11 +54,13 @@ function AppShell() {
   const [childLoginLoading, setChildLoginLoading] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [activePanel, setActivePanel] = useState<AccountPanel>('chats')
+  const [chatView, setChatView] = useState<'chats' | 'friends'>('chats')
 
   const [threads, setThreads] = useState<ThreadListItem[]>([])
   const [threadsLoading, setThreadsLoading] = useState(false)
   const [threadsError, setThreadsError] = useState<string | null>(null)
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null)
+  const [pendingRecipientId, setPendingRecipientId] = useState<string | null>(null)
   const [incomingMessage, setIncomingMessage] = useState<MessageItem | null>(null)
   const stompClientRef = useRef<Client | null>(null)
   const touchStartRef = useRef<{ x: number; y: number } | null>(null)
@@ -268,6 +271,7 @@ function AppShell() {
     if (!auth) {
       setMenuOpen(false)
       setActivePanel('chats')
+      setChatView('chats')
     }
   }, [auth])
 
@@ -281,8 +285,17 @@ function AppShell() {
   }, [auth])
 
   useEffect(() => {
+    if (activePanel !== 'chats') {
+      setChatView('chats')
+    }
+  }, [activePanel])
+
+  useEffect(() => {
     if (!auth) {
       setSelectedThreadId(null)
+      return
+    }
+    if (pendingRecipientId) {
       return
     }
     if (threads.length === 0) {
@@ -296,7 +309,7 @@ function AppShell() {
     if (!threads.some((thread) => thread.threadId === selectedThreadId)) {
       setSelectedThreadId(threads[0].threadId)
     }
-  }, [auth, threads, selectedThreadId])
+  }, [auth, pendingRecipientId, threads, selectedThreadId])
 
   const handleLoginSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -415,6 +428,31 @@ function AppShell() {
   const selectedThread = threads.find((thread) => thread.threadId === selectedThreadId) ?? null
   const showChat = activePanel === 'chats' || auth?.accountType !== 'user'
 
+  const refreshThreads = () => {
+    if (stompClientRef.current) {
+      stompClientRef.current.publish({ destination: '/app/threads/list', body: '' })
+    }
+  }
+
+  const handleFriendSelect = (accountId: string) => {
+    setActivePanel('chats')
+    setChatView('chats')
+    const match = threads.find((thread) => thread.memberAccountIds?.includes(accountId))
+    if (match) {
+      setSelectedThreadId(match.threadId)
+      setPendingRecipientId(null)
+    } else {
+      setSelectedThreadId(null)
+      setPendingRecipientId(accountId)
+    }
+  }
+
+  const handleThreadCreated = (threadId: string) => {
+    setPendingRecipientId(null)
+    setSelectedThreadId(threadId)
+    refreshThreads()
+  }
+
   return (
     <div className={`app ${menuOpen ? 'menu-open' : ''}`}>
       {!auth ? (
@@ -446,6 +484,7 @@ function AppShell() {
             login={auth.profile.login}
             avatarUrl={auth.profile.avatarUrl}
             menuOpen={menuOpen}
+            viewMode={chatView}
             onMenuOpen={() => setMenuOpen(true)}
             onLogout={handleLogout}
           />
@@ -462,18 +501,40 @@ function AppShell() {
             }}
           />
 
+          {activePanel === 'chats' ? (
+            <div className="chat-view-switch">
+              <ChatViewSwitch viewMode={chatView} onViewChange={setChatView} />
+            </div>
+          ) : null}
+
           {showChat ? (
-            <div className="chat-body">
-              <section className="thread-panel">
-                <ThreadList
-                  threads={threads}
-                  loading={threadsLoading}
-                  error={threadsError}
-                  selectedThreadId={selectedThreadId}
-                  onSelectThread={setSelectedThreadId}
-                />
-              </section>
-      <ThreadView thread={selectedThread} auth={auth} authFetch={authFetch} apiBaseUrl={apiBaseUrl} incomingMessage={incomingMessage} />
+            <div className={`chat-body ${chatView === 'friends' ? 'friends-body' : ''}`}>
+              {chatView === 'chats' ? (
+                <>
+                  <section className="thread-panel">
+                    <ThreadList
+                      threads={threads}
+                      loading={threadsLoading}
+                      error={threadsError}
+                      selectedThreadId={selectedThreadId}
+                      onSelectThread={setSelectedThreadId}
+                    />
+                  </section>
+                  <ThreadView
+                    thread={selectedThread}
+                    auth={auth}
+                    authFetch={authFetch}
+                    apiBaseUrl={apiBaseUrl}
+                    incomingMessage={incomingMessage}
+                    recipientAccountId={pendingRecipientId}
+                    onThreadCreated={handleThreadCreated}
+                  />
+                </>
+              ) : (
+                <div className="panel-body">
+                  <FriendsList apiBaseUrl={apiBaseUrl} authFetch={authFetch} onSelectFriend={handleFriendSelect} />
+                </div>
+              )}
             </div>
           ) : (
             <div className="panel-body">

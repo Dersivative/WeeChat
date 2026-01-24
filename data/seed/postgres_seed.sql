@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS account (
 CREATE TABLE IF NOT EXISTS app_user (
 	id UUID PRIMARY KEY REFERENCES account(id) ON DELETE CASCADE,
 	login VARCHAR(100) NOT NULL UNIQUE,
+	email VARCHAR(255) NOT NULL UNIQUE,
 	password_hash VARCHAR(255) NOT NULL,
 	two_factor_enabled BOOLEAN NOT NULL,
 	two_factor_secret VARCHAR(255)
@@ -70,9 +71,9 @@ INSERT INTO account (id, avatar_url, display_name) VALUES
 	('44444444-4444-4444-4444-444444444444', 'tomek.png', 'Tomek')
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO app_user (id, login, password_hash, two_factor_enabled, two_factor_secret) VALUES
-	('11111111-1111-1111-1111-111111111111', 'alice', '$2a$12$mMV4vrcXSvB1305V5Q2ZYedEfVYcDsf0HKfoWN12WAdEiUU/4QM6q', TRUE, '2fa-alice'),
-	('22222222-2222-2222-2222-222222222222', 'bob', '$2a$12$mMV4vrcXSvB1305V5Q2ZYedEfVYcDsf0HKfoWN12WAdEiUU/4QM6q', FALSE, NULL)
+INSERT INTO app_user (id, login, email, password_hash, two_factor_enabled, two_factor_secret) VALUES
+	('11111111-1111-1111-1111-111111111111', 'alice', 'alice@example.com', '$2a$12$mMV4vrcXSvB1305V5Q2ZYedEfVYcDsf0HKfoWN12WAdEiUU/4QM6q', TRUE, '2fa-alice'),
+	('22222222-2222-2222-2222-222222222222', 'bob', 'bob@example.com', '$2a$12$mMV4vrcXSvB1305V5Q2ZYedEfVYcDsf0HKfoWN12WAdEiUU/4QM6q', FALSE, NULL)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO child (id, login_code_hash, login_code_expires_at, login_code_type, moderation_level) VALUES

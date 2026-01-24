@@ -19,6 +19,9 @@ public class User extends Account {
 	@Column(nullable = false, unique = true, length = 100)
 	private String login;
 
+	@Column(nullable = false, unique = true, length = 255)
+	private String email;
+
 	@Column(nullable = false, length = 255)
 	private String passwordHash;
 
@@ -42,6 +45,14 @@ public class User extends Account {
 
 	public void setLogin(String login) {
 		this.login = login;
+	}
+
+	public String getEmail() {
+		return email;
+	}
+
+	public void setEmail(String email) {
+		this.email = email;
 	}
 
 	public String getPasswordHash() {

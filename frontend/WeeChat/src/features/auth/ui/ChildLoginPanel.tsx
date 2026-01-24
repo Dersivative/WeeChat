@@ -20,28 +20,26 @@ function ChildLoginPanel({ onBackupSubmit, loading = false, error = null }: Chil
   return (
     <section className="form-panel">
       <h2>Child login</h2>
-      <p className="hint">
-        Scan the QR code on the child device or use the backup code if scanning
-        is unavailable.
-      </p>
+      <p className="hint">Paste the login code generated in the parent panel.</p>
       <div className="child-login">
         <div className="qr-card">
           <div className="qr-frame">
             <span className="qr-dot" />
           </div>
-          <p>Ready for QR scan</p>
+          <p>QR login coming soon</p>
           <button className="ghost" type="button" disabled>
             Start scanning
           </button>
         </div>
         <form className="code-card form-grid" onSubmit={handleSubmit}>
           <label className="field">
-            Backup code
+            Login code
             <input
               type="text"
-              placeholder="Enter code"
+              placeholder="Paste login code"
               value={backupCode}
               onChange={(event) => setBackupCode(event.target.value)}
+              required
             />
           </label>
           {error ? <p className="form-error">{error}</p> : null}

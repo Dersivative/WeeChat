@@ -82,6 +82,26 @@
   gap: 0.8rem;
 }
 
+.menu-section {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.menu-section-title {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6b6a8b;
+}
+
+.menu-separator {
+  border: none;
+  border-top: 1px solid rgba(201, 214, 232, 0.7);
+  margin: 0.2rem 0;
+}
+
 .menu-item {
   border: 1px solid rgba(201, 214, 232, 0.9);
   background: #f9faff;

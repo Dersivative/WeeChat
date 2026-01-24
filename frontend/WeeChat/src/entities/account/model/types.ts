@@ -7,6 +7,13 @@ export type LoginResponse = {
   refreshToken: string
 }
 
+export type ChildLoginResponse = {
+  accountId: string
+  displayName: string
+  avatarUrl?: string | null
+  accessToken: string
+}
+
 export type AccountType = 'user' | 'child'
 
 export type AuthState = {

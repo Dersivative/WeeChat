@@ -27,6 +27,10 @@ public class Child extends Account {
 	@Column(length = 20)
 	private ChildLoginCodeType loginCodeType;
 
+	@Enumerated(EnumType.STRING)
+	@Column(length = 20)
+	private ModerationLevel moderationLevel = ModerationLevel.MANUAL;
+
 	@ManyToMany(mappedBy = "children", fetch = FetchType.LAZY)
 	private Set<User> parents = new HashSet<>();
 
@@ -52,6 +56,14 @@ public class Child extends Account {
 
 	public void setLoginCodeType(ChildLoginCodeType loginCodeType) {
 		this.loginCodeType = loginCodeType;
+	}
+
+	public ModerationLevel getModerationLevel() {
+		return moderationLevel == null ? ModerationLevel.MANUAL : moderationLevel;
+	}
+
+	public void setModerationLevel(ModerationLevel moderationLevel) {
+		this.moderationLevel = moderationLevel;
 	}
 
 	public Set<User> getParents() {

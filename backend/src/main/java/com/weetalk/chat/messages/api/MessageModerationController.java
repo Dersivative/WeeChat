@@ -1,7 +1,7 @@
 package com.weetalk.chat.messages.api;
 
 import com.weetalk.chat.auth.security.AuthUserPrincipal;
-import com.weetalk.chat.messages.api.dto.MessageItemResponse;
+import com.weetalk.chat.messages.api.dto.ModerationMessageResponse;
 import com.weetalk.chat.messages.application.ThreadMessageService;
 import java.security.Principal;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -20,9 +20,15 @@ public class MessageModerationController {
 	}
 
 	@PostMapping("/{messageId}/approve")
-	public MessageItemResponse approveMessage(@PathVariable String messageId, Principal principal) {
+	public ModerationMessageResponse approveMessage(@PathVariable String messageId, Principal principal) {
 		AuthUserPrincipal user = extractPrincipal(principal);
 		return threadMessageService.approveMessage(user.getAccountId(), messageId);
+	}
+
+	@PostMapping("/{messageId}/reject")
+	public ModerationMessageResponse rejectMessage(@PathVariable String messageId, Principal principal) {
+		AuthUserPrincipal user = extractPrincipal(principal);
+		return threadMessageService.rejectMessage(user.getAccountId(), messageId);
 	}
 
 	private AuthUserPrincipal extractPrincipal(Principal principal) {

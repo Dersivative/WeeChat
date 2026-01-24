@@ -2,6 +2,7 @@ package com.weetalk.chat.messages.application;
 
 import com.weetalk.chat.messages.api.dto.MessageItemResponse;
 import com.weetalk.chat.messages.api.dto.MessageListResponse;
+import com.weetalk.chat.messages.api.dto.ModerationMessageResponse;
 import com.weetalk.chat.messages.infrastructure.mongo.MessageDoc;
 import com.weetalk.chat.messages.infrastructure.mongo.MessageRepository;
 import com.weetalk.chat.moderation.domain.ModerationDecision;
@@ -9,6 +10,7 @@ import com.weetalk.chat.moderation.domain.ModerationStatus;
 import com.weetalk.chat.accounts.domain.User;
 import com.weetalk.chat.accounts.infrastructure.UserRepository;
 import com.weetalk.chat.children.domain.Child;
+import com.weetalk.chat.children.domain.ModerationLevel;
 import com.weetalk.chat.children.infrastructure.ChildRepository;
 import com.weetalk.chat.threads.infrastructure.mongo.ThreadDoc;
 import com.weetalk.chat.threads.infrastructure.mongo.ThreadMember;
@@ -17,6 +19,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
@@ -78,11 +82,10 @@ public class ThreadMessageService {
 		MessageDoc message = new MessageDoc();
 		message.setThreadId(threadId);
 		message.setSenderAccountId(senderAccountId);
-		message.setText(text.trim());
+		String trimmedText = text.trim();
+		message.setText(trimmedText);
 		message.setCreatedAt(now);
-		if (message.getModerationDecision() == null) {
-			message.setModerationDecision(new ModerationDecision());
-		}
+		message.setModerationDecision(buildModerationDecision(thread, senderAccountId, trimmedText, now));
 
 		MessageDoc saved = messageRepository.save(message);
 		thread.setLastMessageAt(now);
@@ -92,10 +95,10 @@ public class ThreadMessageService {
 		return toResponse(saved);
 	}
 
-	public MessageItemResponse approveMessage(UUID approverAccountId, String messageId) {
+	public ModerationMessageResponse approveMessage(UUID approverAccountId, String messageId) {
 		MessageDoc message = messageRepository.findById(messageId)
 			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Message not found"));
-		ThreadDoc thread = requireThreadAccess(approverAccountId, message.getThreadId());
+		ThreadDoc thread = requireModeratorAccess(approverAccountId, message.getThreadId());
 
 		ModerationDecision decision = message.getModerationDecision();
 		if (decision == null) {
@@ -108,7 +111,26 @@ public class ThreadMessageService {
 
 		MessageDoc saved = messageRepository.save(message);
 		pushMessageToMembers(thread, saved);
-		return toResponse(saved);
+		return toModerationResponse(saved);
+	}
+
+	public ModerationMessageResponse rejectMessage(UUID approverAccountId, String messageId) {
+		MessageDoc message = messageRepository.findById(messageId)
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Message not found"));
+		ThreadDoc thread = requireModeratorAccess(approverAccountId, message.getThreadId());
+
+		ModerationDecision decision = message.getModerationDecision();
+		if (decision == null) {
+			decision = new ModerationDecision();
+		}
+		decision.setStatus(ModerationStatus.REJECTED);
+		decision.setDecidedAt(Instant.now());
+		decision.setDecidedByParentUsername(resolveApproverUsername(approverAccountId));
+		message.setModerationDecision(decision);
+
+		MessageDoc saved = messageRepository.save(message);
+		pushMessageToMembers(thread, saved);
+		return toModerationResponse(saved);
 	}
 
 	private ThreadDoc requireThreadAccess(UUID accountId, String threadId) {
@@ -123,6 +145,32 @@ public class ThreadMessageService {
 			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not a thread member");
 		}
 
+		return thread;
+	}
+
+	private ThreadDoc requireModeratorAccess(UUID approverAccountId, String threadId) {
+		ThreadDoc thread = threadRepository.findById(threadId)
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Thread not found"));
+		User parent = userRepository.findById(approverAccountId)
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Parent account required"));
+		boolean isMember = thread.getMembers()
+			.stream()
+			.anyMatch(member -> isActiveMember(member, approverAccountId));
+		if (isMember) {
+			return thread;
+		}
+		List<UUID> childIds = thread.getMembers()
+			.stream()
+			.filter(member -> member.getLeftAt() == null)
+			.map(ThreadMember::getAccountId)
+			.filter(id -> id != null && childRepository.existsById(id))
+			.toList();
+		boolean linked = parent.getChildren()
+			.stream()
+			.anyMatch(child -> childIds.contains(child.getId()));
+		if (!linked) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Parent not linked to child");
+		}
 		return thread;
 	}
 
@@ -193,6 +241,37 @@ public class ThreadMessageService {
 		);
 	}
 
+	private ModerationMessageResponse toModerationResponse(MessageDoc message) {
+		ModerationDecision decision = message.getModerationDecision();
+		ModerationStatus status = decision == null ? ModerationStatus.PENDING : decision.getStatus();
+		ModerationStatus suggested = null;
+		Double score = null;
+		if (decision != null && decision.getModelData() != null) {
+			Object suggestedValue = decision.getModelData().get("suggestedStatus");
+			if (suggestedValue instanceof String suggestedStatus) {
+				try {
+					suggested = ModerationStatus.valueOf(suggestedStatus);
+				} catch (IllegalArgumentException ignored) {
+					suggested = null;
+				}
+			}
+			Object scoreValue = decision.getModelData().get("score");
+			if (scoreValue instanceof Number scoreNumber) {
+				score = scoreNumber.doubleValue();
+			}
+		}
+		return new ModerationMessageResponse(
+			message.getId(),
+			message.getThreadId(),
+			message.getSenderAccountId(),
+			message.getText(),
+			message.getCreatedAt(),
+			status,
+			suggested,
+			score
+		);
+	}
+
 	private String resolveMessageText(MessageDoc message) {
 		if (message.getDeletedAt() != null) {
 			return MESSAGE_UNAVAILABLE;
@@ -209,6 +288,95 @@ public class ThreadMessageService {
 			return false;
 		}
 		return decision.getStatus() == ModerationStatus.APPROVED;
+	}
+
+	private ModerationDecision buildModerationDecision(
+		ThreadDoc thread,
+		UUID senderAccountId,
+		String text,
+		Instant now
+	) {
+		List<UUID> memberIds = thread.getMembers()
+			.stream()
+			.filter(member -> member.getLeftAt() == null)
+			.map(ThreadMember::getAccountId)
+			.filter(id -> id != null)
+			.toList();
+		List<Child> children = childRepository.findAllById(memberIds);
+		List<Child> recipients = children.stream()
+			.filter(child -> senderAccountId == null || !senderAccountId.equals(child.getId()))
+			.toList();
+
+		if (recipients.isEmpty()) {
+			return approvedDecision(now, "Auto-approved");
+		}
+
+		ModerationLevel level = recipients.stream()
+			.map(Child::getModerationLevel)
+			.max(Comparator.comparingInt(this::moderationLevelPriority))
+			.orElse(ModerationLevel.MANUAL);
+
+		ModerationSignal signal = evaluateModerationSignal(text);
+		return switch (level) {
+			case NONE -> approvedDecision(now, "Auto-approved");
+			case AUTOMATED -> automatedDecision(signal, now);
+			case MANUAL -> manualDecision(signal);
+		};
+	}
+
+	private int moderationLevelPriority(ModerationLevel level) {
+		return switch (level) {
+			case NONE -> 0;
+			case AUTOMATED -> 1;
+			case MANUAL -> 2;
+		};
+	}
+
+	private ModerationSignal evaluateModerationSignal(String text) {
+		if (text == null || text.isBlank()) {
+			return new ModerationSignal(ModerationStatus.APPROVED, 0.05);
+		}
+		String normalized = text.toLowerCase(Locale.ROOT);
+		boolean flagged = normalized.contains("hate")
+			|| normalized.contains("kill")
+			|| normalized.contains("stupid")
+			|| normalized.contains("idiot");
+		return flagged
+			? new ModerationSignal(ModerationStatus.REJECTED, 0.92)
+			: new ModerationSignal(ModerationStatus.APPROVED, 0.08);
+	}
+
+	private ModerationDecision approvedDecision(Instant now, String reason) {
+		ModerationDecision decision = new ModerationDecision();
+		decision.setStatus(ModerationStatus.APPROVED);
+		decision.setDecidedAt(now);
+		decision.setDecidedByParentUsername("system");
+		decision.setReason(reason);
+		return decision;
+	}
+
+	private ModerationDecision automatedDecision(ModerationSignal signal, Instant now) {
+		ModerationDecision decision = new ModerationDecision();
+		decision.setStatus(signal.status());
+		decision.setDecidedAt(now);
+		decision.setDecidedByParentUsername("system");
+		decision.setReason("Automated moderation");
+		decision.setModelData(Map.of(
+			"suggestedStatus", signal.status().name(),
+			"score", signal.score()
+		));
+		return decision;
+	}
+
+	private ModerationDecision manualDecision(ModerationSignal signal) {
+		ModerationDecision decision = new ModerationDecision();
+		decision.setStatus(ModerationStatus.PENDING);
+		decision.setReason("Manual moderation");
+		decision.setModelData(Map.of(
+			"suggestedStatus", signal.status().name(),
+			"score", signal.score()
+		));
+		return decision;
 	}
 
 	private void pushMessageToMembers(ThreadDoc thread, MessageDoc message) {
@@ -245,5 +413,8 @@ public class ThreadMessageService {
 	}
 
 	private record MessagePage(List<MessageDoc> docs, boolean hasMore, Instant nextBefore) {
+	}
+
+	private record ModerationSignal(ModerationStatus status, double score) {
 	}
 }

@@ -7,9 +7,19 @@ type AccountMenuProps = {
   login: string
   onClose: () => void
   onLogout: () => void
+  onSelectPanel: (panel: AccountPanel) => void
 }
 
-function AccountMenu({ open, accountType, login, onClose, onLogout }: AccountMenuProps) {
+export type AccountPanel = 'chats' | 'manage-children' | 'moderation-settings' | 'moderation-queue'
+
+function AccountMenu({
+  open,
+  accountType,
+  login,
+  onClose,
+  onLogout,
+  onSelectPanel,
+}: AccountMenuProps) {
   return (
     <>
       <div className={`menu-overlay ${open ? 'open' : ''}`} onClick={onClose} />
@@ -26,21 +36,46 @@ function AccountMenu({ open, accountType, login, onClose, onLogout }: AccountMen
         <div className="menu-items">
           {accountType === 'user' ? (
             <>
-              <button className="menu-item" type="button" disabled>
-                Settings
-              </button>
-              <button className="menu-item" type="button" disabled>
-                Moderation Queue
-              </button>
+              <div className="menu-section">
+                <button className="menu-item" type="button" onClick={() => onSelectPanel('chats')}>
+                  Chats
+                </button>
+              </div>
+              <hr className="menu-separator" />
+              <div className="menu-section">
+                <p className="menu-section-title">Children</p>
+                <button className="menu-item" type="button" onClick={() => onSelectPanel('manage-children')}>
+                  Manage Children
+                </button>
+                <button className="menu-item" type="button" onClick={() => onSelectPanel('moderation-settings')}>
+                  Moderation Settings
+                </button>
+                <button className="menu-item" type="button" onClick={() => onSelectPanel('moderation-queue')}>
+                  Moderate Messages
+                </button>
+              </div>
+              <hr className="menu-separator" />
+              <div className="menu-section">
+                <button className="menu-item danger" type="button" onClick={onLogout}>
+                  Log out
+                </button>
+              </div>
             </>
           ) : (
-            <button className="menu-item" type="button" disabled>
-              Setting
-            </button>
+            <>
+              <div className="menu-section">
+                <button className="menu-item" type="button" onClick={() => onSelectPanel('chats')}>
+                  Chats
+                </button>
+              </div>
+              <hr className="menu-separator" />
+              <div className="menu-section">
+                <button className="menu-item danger" type="button" onClick={onLogout}>
+                  Log out
+                </button>
+              </div>
+            </>
           )}
-          <button className="menu-item danger" type="button" onClick={onLogout}>
-            Log out
-          </button>
         </div>
       </aside>
     </>

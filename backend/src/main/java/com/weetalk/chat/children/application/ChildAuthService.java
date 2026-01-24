@@ -8,6 +8,7 @@ import com.weetalk.chat.children.api.dto.ChildResponse;
 import com.weetalk.chat.children.api.dto.CreateChildRequest;
 import com.weetalk.chat.children.domain.Child;
 import com.weetalk.chat.children.domain.ChildLoginCodeType;
+import com.weetalk.chat.children.domain.ModerationLevel;
 import com.weetalk.chat.children.infrastructure.ChildRepository;
 import com.weetalk.chat.media.MediaUrlResolver;
 import com.weetalk.chat.auth.security.JwtService;
@@ -15,6 +16,7 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -57,6 +59,8 @@ public class ChildAuthService {
 		Child child = new Child();
 		child.setDisplayName(request.getDisplayName());
 		child.setAvatarFileName(request.getAvatarFileName());
+		ModerationLevel moderationLevel = request.getModerationLevel();
+		child.setModerationLevel(moderationLevel == null ? ModerationLevel.MANUAL : moderationLevel);
 		child.getParents().add(parent);
 		parent.getChildren().add(child);
 		childRepository.save(child);
@@ -65,7 +69,8 @@ public class ChildAuthService {
 		return new ChildResponse(
 			child.getId(),
 			child.getDisplayName(),
-			mediaUrlResolver.resolveAvatarUrl(child.getAvatarFileName())
+			mediaUrlResolver.resolveAvatarUrl(child.getAvatarFileName()),
+			child.getModerationLevel()
 		);
 	}
 
@@ -90,21 +95,35 @@ public class ChildAuthService {
 	}
 
 	@Transactional
-	public ChildLoginResponse loginWithToken(UUID childId, String token) {
-		Child child = childRepository.findById(childId)
-			.orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid child login"));
-
+	public ChildLoginResponse loginWithToken(String token) {
 		String normalizedToken = token == null ? null : token.trim();
-		if (!isValidLoginToken(child, normalizedToken)) {
+		if (normalizedToken == null || normalizedToken.isBlank()) {
 			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid child login");
 		}
 
-		clearLoginToken(child);
-		String accessToken = jwtService.generateAccessToken(child.getId(), child.getDisplayName());
+		Instant now = Instant.now();
+		List<Child> candidates = childRepository.findByLoginCodeHashIsNotNullAndLoginCodeExpiresAtAfter(now);
+		Child matched = null;
+		for (Child child : candidates) {
+			if (child.getLoginCodeType() != ChildLoginCodeType.TEXT_CODE) {
+				continue;
+			}
+			if (passwordEncoder.matches(normalizedToken, child.getLoginCodeHash())) {
+				matched = child;
+				break;
+			}
+		}
+
+		if (matched == null) {
+			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid child login");
+		}
+
+		clearLoginToken(matched);
+		String accessToken = jwtService.generateAccessToken(matched.getId(), matched.getDisplayName());
 		return new ChildLoginResponse(
-			child.getId(),
-			child.getDisplayName(),
-			mediaUrlResolver.resolveAvatarUrl(child.getAvatarFileName()),
+			matched.getId(),
+			matched.getDisplayName(),
+			mediaUrlResolver.resolveAvatarUrl(matched.getAvatarFileName()),
 			accessToken
 		);
 	}
@@ -131,19 +150,6 @@ public class ChildAuthService {
 		child.setLoginCodeType(type);
 		child.setLoginCodeExpiresAt(expiresAt);
 		childRepository.save(child);
-	}
-
-	private boolean isValidLoginToken(Child child, String token) {
-		if (token == null || token.isBlank()) {
-			return false;
-		}
-		if (child.getLoginCodeHash() == null || child.getLoginCodeExpiresAt() == null) {
-			return false;
-		}
-		if (Instant.now().isAfter(child.getLoginCodeExpiresAt())) {
-			return false;
-		}
-		return passwordEncoder.matches(token, child.getLoginCodeHash());
 	}
 
 	private void clearLoginToken(Child child) {

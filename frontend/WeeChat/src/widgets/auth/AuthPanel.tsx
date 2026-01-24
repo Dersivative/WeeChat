@@ -11,9 +11,12 @@ type AuthPanelProps = {
   role: AccountType
   loginLoading: boolean
   loginError: string | null
+  childLoginLoading: boolean
+  childLoginError: string | null
   onRoleChange: (role: AccountType) => void
   onFormChange: (field: 'login' | 'password', value: string) => void
   onLoginSubmit: (event: FormEvent<HTMLFormElement>) => void
+  onChildLoginSubmit: (code: string) => void
 }
 
 function AuthPanel({
@@ -21,9 +24,12 @@ function AuthPanel({
   role,
   loginLoading,
   loginError,
+  childLoginLoading,
+  childLoginError,
   onRoleChange,
   onFormChange,
   onLoginSubmit,
+  onChildLoginSubmit,
 }: AuthPanelProps) {
   return (
     <>
@@ -57,7 +63,7 @@ function AuthPanel({
           onLoginSubmit={onLoginSubmit}
         />
       ) : (
-        <ChildLoginPanel />
+        <ChildLoginPanel onBackupSubmit={onChildLoginSubmit} loading={childLoginLoading} error={childLoginError} />
       )}
     </>
   )

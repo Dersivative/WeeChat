@@ -3,9 +3,10 @@ import { type FormEvent, type TouchEvent, useEffect, useMemo, useRef, useState }
 import './app-shell.css'
 import { AuthPanel, WelcomeHeader } from '../auth'
 import { ChatHeader } from '../chat'
-import { AccountMenu } from '../menu'
+import { AccountMenu, type AccountPanel } from '../menu'
+import { ChildrenManager, ModerationQueuePanel, ModerationSettingsPanel } from '../children'
 import { ThreadList, ThreadView } from '../threads'
-import type { AccountType, AuthState, LoginResponse } from '../../entities/account'
+import type { AccountType, AuthState, ChildLoginResponse, LoginResponse } from '../../entities/account'
 import type { MessageItem } from '../../entities/message'
 import type { ThreadListItem, ThreadListResponse } from '../../entities/thread'
 
@@ -21,7 +22,10 @@ function AppShell() {
   const [auth, setAuth] = useState<AuthState | null>(null)
   const [loginError, setLoginError] = useState<string | null>(null)
   const [loginLoading, setLoginLoading] = useState(false)
+  const [childLoginError, setChildLoginError] = useState<string | null>(null)
+  const [childLoginLoading, setChildLoginLoading] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [activePanel, setActivePanel] = useState<AccountPanel>('chats')
 
   const [threads, setThreads] = useState<ThreadListItem[]>([])
   const [threadsLoading, setThreadsLoading] = useState(false)
@@ -147,6 +151,16 @@ function AppShell() {
   useEffect(() => {
     if (!auth) {
       setMenuOpen(false)
+      setActivePanel('chats')
+    }
+  }, [auth])
+
+  useEffect(() => {
+    if (!auth) {
+      return
+    }
+    if (auth.accountType !== 'user') {
+      setActivePanel('chats')
     }
   }, [auth])
 
@@ -201,17 +215,61 @@ function AppShell() {
     }
   }
 
+  const handleChildLogin = async (code: string) => {
+    const token = code.trim()
+    if (!token) {
+      return
+    }
+    setChildLoginError(null)
+    setChildLoginLoading(true)
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/children/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token }),
+      })
+      if (!response.ok) {
+        throw new Error('Invalid login code.')
+      }
+      const payload = (await response.json()) as ChildLoginResponse
+      const profile: LoginResponse = {
+        accountId: payload.accountId,
+        login: payload.displayName,
+        twoFactorEnabled: false,
+        avatarUrl: payload.avatarUrl,
+        accessToken: payload.accessToken,
+        refreshToken: '',
+      }
+      setAuth({
+        login: payload.displayName,
+        accessToken: payload.accessToken,
+        refreshToken: '',
+        accountType: 'child',
+        profile,
+      })
+    } catch (error) {
+      setChildLoginError(error instanceof Error ? error.message : 'Login failed.')
+    } finally {
+      setChildLoginLoading(false)
+    }
+  }
+
   const handleLogout = () => {
     setAuth(null)
     setMenuOpen(false)
     setSelectedThreadId(null)
     setIncomingMessage(null)
+    setActivePanel('chats')
     if (stompClientRef.current) {
       stompClientRef.current.deactivate()
       stompClientRef.current = null
     }
     setThreads([])
     setFormState({ login: '', password: '' })
+    setChildLoginError(null)
+    setChildLoginLoading(false)
   }
 
   const handleTouchStart = (event: TouchEvent<HTMLElement>) => {
@@ -239,6 +297,7 @@ function AppShell() {
   }
 
   const selectedThread = threads.find((thread) => thread.threadId === selectedThreadId) ?? null
+  const showChat = activePanel === 'chats' || auth?.accountType !== 'user'
 
   return (
     <div className={`app ${menuOpen ? 'menu-open' : ''}`}>
@@ -252,10 +311,13 @@ function AppShell() {
             onRoleChange={setLoginRole}
             loginError={loginError}
             loginLoading={loginLoading}
+            childLoginError={childLoginError}
+            childLoginLoading={childLoginLoading}
             onFormChange={(field: 'login' | 'password', value: string) =>
               setFormState((prev) => ({ ...prev, [field]: value }))
             }
             onLoginSubmit={handleLoginSubmit}
+            onChildLoginSubmit={handleChildLogin}
           />
         </main>
       ) : (
@@ -278,25 +340,43 @@ function AppShell() {
             login={auth.profile.login}
             onClose={() => setMenuOpen(false)}
             onLogout={handleLogout}
+            onSelectPanel={(panel) => {
+              setActivePanel(panel)
+              setMenuOpen(false)
+            }}
           />
 
-          <div className="chat-body">
-            <section className="thread-panel">
-              <ThreadList
-                threads={threads}
-                loading={threadsLoading}
-                error={threadsError}
-                selectedThreadId={selectedThreadId}
-                onSelectThread={setSelectedThreadId}
+          {showChat ? (
+            <div className="chat-body">
+              <section className="thread-panel">
+                <ThreadList
+                  threads={threads}
+                  loading={threadsLoading}
+                  error={threadsError}
+                  selectedThreadId={selectedThreadId}
+                  onSelectThread={setSelectedThreadId}
+                />
+              </section>
+              <ThreadView
+                thread={selectedThread}
+                auth={auth}
+                apiBaseUrl={apiBaseUrl}
+                incomingMessage={incomingMessage}
               />
-            </section>
-            <ThreadView
-              thread={selectedThread}
-              auth={auth}
-              apiBaseUrl={apiBaseUrl}
-              incomingMessage={incomingMessage}
-            />
-          </div>
+            </div>
+          ) : (
+            <div className="panel-body">
+              {activePanel === 'manage-children' ? (
+                <ChildrenManager auth={auth} apiBaseUrl={apiBaseUrl} />
+              ) : null}
+              {activePanel === 'moderation-settings' ? (
+                <ModerationSettingsPanel auth={auth} apiBaseUrl={apiBaseUrl} />
+              ) : null}
+              {activePanel === 'moderation-queue' ? (
+                <ModerationQueuePanel auth={auth} apiBaseUrl={apiBaseUrl} />
+              ) : null}
+            </div>
+          )}
         </main>
       )}
     </div>

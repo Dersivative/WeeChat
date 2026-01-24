@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS child (
 	id UUID PRIMARY KEY REFERENCES account(id) ON DELETE CASCADE,
 	login_code_hash VARCHAR(255),
 	login_code_expires_at TIMESTAMPTZ,
-	login_code_type VARCHAR(20)
+	login_code_type VARCHAR(20),
+	moderation_level VARCHAR(20) NOT NULL DEFAULT 'MANUAL'
 );
 
 CREATE TABLE IF NOT EXISTS parent_child (
@@ -74,9 +75,9 @@ INSERT INTO app_user (id, login, password_hash, two_factor_enabled, two_factor_s
 	('22222222-2222-2222-2222-222222222222', 'bob', '$2a$12$mMV4vrcXSvB1305V5Q2ZYedEfVYcDsf0HKfoWN12WAdEiUU/4QM6q', FALSE, NULL)
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO child (id, login_code_hash, login_code_expires_at, login_code_type) VALUES
-	('33333333-3333-3333-3333-333333333333', 'code-kaja', '2026-01-21T12:00:00Z', 'TEXT_CODE'),
-	('44444444-4444-4444-4444-444444444444', 'code-tomek', '2026-01-21T12:00:00Z', 'QR_CODE')
+INSERT INTO child (id, login_code_hash, login_code_expires_at, login_code_type, moderation_level) VALUES
+	('33333333-3333-3333-3333-333333333333', 'code-kaja', '2026-01-21T12:00:00Z', 'TEXT_CODE', 'MANUAL'),
+	('44444444-4444-4444-4444-444444444444', 'code-tomek', '2026-01-21T12:00:00Z', 'QR_CODE', 'AUTOMATED')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO parent_child (parent_id, child_id) VALUES

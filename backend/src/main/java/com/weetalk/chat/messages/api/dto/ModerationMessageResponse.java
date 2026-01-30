@@ -13,6 +13,7 @@ public class ModerationMessageResponse {
 	private ModerationStatus status;
 	private ModerationStatus suggestedStatus;
 	private Double score;
+	private String label;
 
 	public ModerationMessageResponse(
 		String id,
@@ -22,7 +23,8 @@ public class ModerationMessageResponse {
 		Instant createdAt,
 		ModerationStatus status,
 		ModerationStatus suggestedStatus,
-		Double score
+		Double score,
+		String label
 	) {
 		this.id = id;
 		this.threadId = threadId;
@@ -32,6 +34,7 @@ public class ModerationMessageResponse {
 		this.status = status;
 		this.suggestedStatus = suggestedStatus;
 		this.score = score;
+		this.label = label;
 	}
 
 	public String getId() {
@@ -64,5 +67,9 @@ public class ModerationMessageResponse {
 
 	public Double getScore() {
 		return score;
+	}
+
+	public String getLabel() {
+		return label;
 	}
 }

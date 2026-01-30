@@ -1,0 +1,26 @@
+# compose.yaml
+services:
+  pl-guard:
+    build: ./pl-guard
+    environment:
+      HF_MODEL_ID: "NASK-PIB/HerBERT-PL-Guard"
+      HF_TOKEN: "${HF_TOKEN}"
+      WORKERS: "1"
+      LOG_LEVEL: "info"
+    volumes:
+      - hf-cache:/root/.cache/huggingface
+
+    container_name: pl-guard
+    ports:
+      - "8001:8000"   # optional: for local testing; Spring can call by service name without exposing
+    networks:
+      - appnet
+    restart: unless-stopped
+
+
+volumes:
+  hf-cache:
+
+networks:
+  appnet:
+    driver: bridge

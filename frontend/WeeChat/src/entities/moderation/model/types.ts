@@ -11,6 +11,7 @@ export type ModerationMessage = {
   status: ModerationStatus
   suggestedStatus?: ModerationStatus | null
   score?: number | null
+  label?: string | null
 }
 
 export type ModerationThread = {

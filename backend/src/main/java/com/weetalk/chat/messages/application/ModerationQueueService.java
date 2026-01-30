@@ -139,6 +139,7 @@ public class ModerationQueueService {
 		ModerationStatus status = decision == null ? ModerationStatus.PENDING : decision.getStatus();
 		ModerationStatus suggested = null;
 		Double score = null;
+		String label = null;
 		if (decision != null && decision.getModelData() != null) {
 			Object suggestedValue = decision.getModelData().get("suggestedStatus");
 			if (suggestedValue instanceof String suggestedStatus) {
@@ -152,6 +153,10 @@ public class ModerationQueueService {
 			if (scoreValue instanceof Number scoreNumber) {
 				score = scoreNumber.doubleValue();
 			}
+			Object labelValue = decision.getModelData().get("label");
+			if (labelValue instanceof String labelText) {
+				label = labelText;
+			}
 		}
 		return new ModerationMessageResponse(
 			message.getId(),
@@ -161,7 +166,8 @@ public class ModerationQueueService {
 			message.getCreatedAt(),
 			status,
 			suggested,
-			score
+			score,
+			label
 		);
 	}
 

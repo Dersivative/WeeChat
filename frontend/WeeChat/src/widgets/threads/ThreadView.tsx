@@ -10,12 +10,22 @@ type ThreadViewProps = {
   apiBaseUrl: string
   authFetch: AuthFetch
   incomingMessage?: MessageItem | null
+  recipientAccountId?: string | null
+  onThreadCreated?: (threadId: string) => void
 }
 
 const PAGE_SIZE = 10
 const MESSAGE_UNAVAILABLE = 'Message unavailable'
 
-function ThreadView({ thread, auth, apiBaseUrl, authFetch, incomingMessage = null }: ThreadViewProps) {
+function ThreadView({
+  thread,
+  auth,
+  apiBaseUrl,
+  authFetch,
+  incomingMessage = null,
+  recipientAccountId = null,
+  onThreadCreated,
+}: ThreadViewProps) {
   const [messages, setMessages] = useState<MessageItem[]>([])
   const [loading, setLoading] = useState(false)
   const [loadingOlder, setLoadingOlder] = useState(false)
@@ -132,7 +142,7 @@ function ThreadView({ thread, auth, apiBaseUrl, authFetch, incomingMessage = nul
 
   const handleSend = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!thread || sending) {
+    if ((!thread && !recipientAccountId) || sending) {
       return
     }
     const trimmed = draft.trim()
@@ -142,17 +152,28 @@ function ThreadView({ thread, auth, apiBaseUrl, authFetch, incomingMessage = nul
     setSending(true)
     setSendError(null)
     try {
-      const response = await authFetch(`${apiBaseUrl}/api/threads/${thread.threadId}/messages`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ text: trimmed }),
-      })
+      const response = thread
+        ? await authFetch(`${apiBaseUrl}/api/threads/${thread.threadId}/messages`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ text: trimmed }),
+          })
+        : await authFetch(`${apiBaseUrl}/api/threads/direct/messages`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ recipientAccountId, text: trimmed }),
+          })
       if (!response.ok) {
         throw new Error('Could not send message.')
       }
       const payload = (await response.json()) as MessageItem
+      if (!thread && payload.threadId && onThreadCreated) {
+        onThreadCreated(payload.threadId)
+      }
       setMessages((prev) => {
         if (prev.some((message) => message.id === payload.id)) {
           return prev
@@ -172,7 +193,7 @@ function ThreadView({ thread, auth, apiBaseUrl, authFetch, incomingMessage = nul
     }
   }
 
-  if (!thread) {
+  if (!thread && !recipientAccountId) {
     return (
       <section className="thread-view empty">
         <p className="status">Select a chat to see messages.</p>
@@ -180,12 +201,42 @@ function ThreadView({ thread, auth, apiBaseUrl, authFetch, incomingMessage = nul
     )
   }
 
+  if (!thread && recipientAccountId) {
+    return (
+      <section className="thread-view">
+        <header className="thread-view-header">
+          <div>
+            <p className="section-label">Conversation</p>
+            <h2>New chat</h2>
+          </div>
+        </header>
+        <div className="message-list" ref={listRef}>
+          <p className="status subtle">Start the conversation.</p>
+        </div>
+        <form className="message-composer" onSubmit={handleSend}>
+          <input
+            type="text"
+            placeholder="Write a message..."
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+          />
+          <button className="primary" type="submit" disabled={sending || !draft.trim()}>
+            {sending ? 'Sending...' : 'Send'}
+          </button>
+        </form>
+        {sendError ? <p className="form-error">{sendError}</p> : null}
+      </section>
+    )
+  }
+
+  const activeThread = thread as ThreadListItem
+
   return (
     <section className="thread-view">
       <header className="thread-view-header">
         <div>
           <p className="section-label">Conversation</p>
-          <h2>{thread.title}</h2>
+          <h2>{activeThread.title}</h2>
         </div>
         <span className="thread-count">{messages.length} messages</span>
       </header>

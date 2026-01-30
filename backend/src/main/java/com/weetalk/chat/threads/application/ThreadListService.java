@@ -82,6 +82,11 @@ public class ThreadListService {
 	) {
 		String title = resolveTitle(thread, members, accounts, viewerAccountId);
 		List<String> avatarUrls = resolveAvatars(members, accounts, viewerAccountId);
+		List<String> memberAccountIds = members.stream()
+			.map(ThreadMember::getAccountId)
+			.filter(Objects::nonNull)
+			.map(UUID::toString)
+			.toList();
 		String lastMessageText = resolveLastMessageText(lastMessage);
 		Instant lastMessageAt = resolveLastMessageAt(thread, lastMessage);
 		boolean unread = isUnread(lastMessage, viewerAccountId);
@@ -92,7 +97,8 @@ public class ThreadListService {
 			lastMessageText,
 			lastMessageAt,
 			unread,
-			avatarUrls
+			avatarUrls,
+			memberAccountIds
 		);
 	}
 

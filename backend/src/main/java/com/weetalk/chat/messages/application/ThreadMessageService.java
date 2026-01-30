@@ -7,6 +7,7 @@ import com.weetalk.chat.messages.infrastructure.mongo.MessageDoc;
 import com.weetalk.chat.messages.infrastructure.mongo.MessageRepository;
 import com.weetalk.chat.moderation.domain.ModerationDecision;
 import com.weetalk.chat.moderation.domain.ModerationStatus;
+import com.weetalk.chat.moderation.application.ModerationLlmService;
 import com.weetalk.chat.accounts.domain.User;
 import com.weetalk.chat.accounts.infrastructure.UserRepository;
 import com.weetalk.chat.children.domain.Child;
@@ -19,14 +20,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -39,20 +36,23 @@ public class ThreadMessageService {
 	private final ThreadRepository threadRepository;
 	private final ChildRepository childRepository;
 	private final UserRepository userRepository;
-	private final SimpMessagingTemplate messagingTemplate;
+	private final MessageNotifier messageNotifier;
+	private final ModerationLlmService moderationLlmService;
 
 	public ThreadMessageService(
 		MessageRepository messageRepository,
 		ThreadRepository threadRepository,
 		ChildRepository childRepository,
 		UserRepository userRepository,
-		SimpMessagingTemplate messagingTemplate
+		MessageNotifier messageNotifier,
+		ModerationLlmService moderationLlmService
 	) {
 		this.messageRepository = messageRepository;
 		this.threadRepository = threadRepository;
 		this.childRepository = childRepository;
 		this.userRepository = userRepository;
-		this.messagingTemplate = messagingTemplate;
+		this.messageNotifier = messageNotifier;
+		this.moderationLlmService = moderationLlmService;
 	}
 
 	public MessageListResponse listMessages(UUID viewerAccountId, String threadId, Instant before, int limit) {
@@ -74,25 +74,25 @@ public class ThreadMessageService {
 
 	public MessageItemResponse sendMessage(UUID senderAccountId, String threadId, String text) {
 		ThreadDoc thread = requireThreadAccess(senderAccountId, threadId);
-		if (text == null || text.isBlank()) {
-			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Message text cannot be empty");
+		return sendMessageToThread(thread, senderAccountId, text);
+	}
+
+	public MessageItemResponse sendDirectMessage(UUID senderAccountId, UUID recipientAccountId, String text) {
+		if (recipientAccountId == null) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Recipient account is required");
 		}
-
-		Instant now = Instant.now();
-		MessageDoc message = new MessageDoc();
-		message.setThreadId(threadId);
-		message.setSenderAccountId(senderAccountId);
-		String trimmedText = text.trim();
-		message.setText(trimmedText);
-		message.setCreatedAt(now);
-		message.setModerationDecision(buildModerationDecision(thread, senderAccountId, trimmedText, now));
-
-		MessageDoc saved = messageRepository.save(message);
-		thread.setLastMessageAt(now);
-		threadRepository.save(thread);
-		pushMessageToMembers(thread, saved);
-
-		return toResponse(saved);
+		if (senderAccountId != null && senderAccountId.equals(recipientAccountId)) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot message yourself");
+		}
+		boolean recipientExists = userRepository.existsById(recipientAccountId) || childRepository.existsById(recipientAccountId);
+		if (!recipientExists) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Recipient account not found");
+		}
+		ThreadDoc thread = findDirectThread(senderAccountId, recipientAccountId);
+		if (thread == null) {
+			thread = createDirectThread(senderAccountId, recipientAccountId);
+		}
+		return sendMessageToThread(thread, senderAccountId, text);
 	}
 
 	public ModerationMessageResponse approveMessage(UUID approverAccountId, String messageId) {
@@ -110,7 +110,7 @@ public class ThreadMessageService {
 		message.setModerationDecision(decision);
 
 		MessageDoc saved = messageRepository.save(message);
-		pushMessageToMembers(thread, saved);
+		messageNotifier.pushMessageToMembers(thread, saved);
 		return toModerationResponse(saved);
 	}
 
@@ -129,7 +129,7 @@ public class ThreadMessageService {
 		message.setModerationDecision(decision);
 
 		MessageDoc saved = messageRepository.save(message);
-		pushMessageToMembers(thread, saved);
+		messageNotifier.pushMessageToMembers(thread, saved);
 		return toModerationResponse(saved);
 	}
 
@@ -146,6 +146,79 @@ public class ThreadMessageService {
 		}
 
 		return thread;
+	}
+
+	private ThreadDoc findDirectThread(UUID firstAccountId, UUID secondAccountId) {
+		if (firstAccountId == null || secondAccountId == null) {
+			return null;
+		}
+		List<ThreadDoc> candidates = threadRepository.findDirectThreads(firstAccountId, secondAccountId);
+		for (ThreadDoc candidate : candidates) {
+			List<ThreadMember> activeMembers = candidate.getMembers()
+				.stream()
+				.filter(member -> member.getLeftAt() == null)
+				.toList();
+			if (activeMembers.size() != 2) {
+				continue;
+			}
+			boolean containsFirst = activeMembers.stream().anyMatch(member -> firstAccountId.equals(member.getAccountId()));
+			boolean containsSecond = activeMembers.stream().anyMatch(member -> secondAccountId.equals(member.getAccountId()));
+			if (containsFirst && containsSecond) {
+				return candidate;
+			}
+		}
+		return null;
+	}
+
+	private ThreadDoc createDirectThread(UUID firstAccountId, UUID secondAccountId) {
+		Instant now = Instant.now();
+		ThreadDoc thread = new ThreadDoc();
+		thread.setCreatedAt(now);
+		thread.setLastMessageAt(now);
+
+		ThreadMember first = new ThreadMember();
+		first.setAccountId(firstAccountId);
+		first.setJoinedAt(now);
+
+		ThreadMember second = new ThreadMember();
+		second.setAccountId(secondAccountId);
+		second.setJoinedAt(now);
+
+		thread.setMembers(List.of(first, second));
+		return threadRepository.save(thread);
+	}
+
+	private MessageItemResponse sendMessageToThread(ThreadDoc thread, UUID senderAccountId, String text) {
+		if (text == null || text.isBlank()) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Message text cannot be empty");
+		}
+		boolean isMember = thread.getMembers()
+			.stream()
+			.anyMatch(member -> isActiveMember(member, senderAccountId));
+		if (!isMember) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not a thread member");
+		}
+
+		Instant now = Instant.now();
+		MessageDoc message = new MessageDoc();
+		message.setThreadId(thread.getId());
+		message.setSenderAccountId(senderAccountId);
+		String trimmedText = text.trim();
+		message.setText(trimmedText);
+		message.setCreatedAt(now);
+		ModerationLevel moderationLevel = resolveModerationLevel(thread, senderAccountId);
+		message.setModerationDecision(buildInitialDecision(moderationLevel, now));
+
+		MessageDoc saved = messageRepository.save(message);
+		thread.setLastMessageAt(now);
+		threadRepository.save(thread);
+		messageNotifier.pushMessageToMembers(thread, saved);
+
+		if (moderationLevel != ModerationLevel.NONE) {
+			moderationLlmService.requestModeration(saved.getId(), moderationLevel);
+		}
+
+		return toResponse(saved);
 	}
 
 	private ThreadDoc requireModeratorAccess(UUID approverAccountId, String threadId) {
@@ -246,6 +319,7 @@ public class ThreadMessageService {
 		ModerationStatus status = decision == null ? ModerationStatus.PENDING : decision.getStatus();
 		ModerationStatus suggested = null;
 		Double score = null;
+		String label = null;
 		if (decision != null && decision.getModelData() != null) {
 			Object suggestedValue = decision.getModelData().get("suggestedStatus");
 			if (suggestedValue instanceof String suggestedStatus) {
@@ -259,6 +333,10 @@ public class ThreadMessageService {
 			if (scoreValue instanceof Number scoreNumber) {
 				score = scoreNumber.doubleValue();
 			}
+			Object labelValue = decision.getModelData().get("label");
+			if (labelValue instanceof String labelText) {
+				label = labelText;
+			}
 		}
 		return new ModerationMessageResponse(
 			message.getId(),
@@ -268,7 +346,8 @@ public class ThreadMessageService {
 			message.getCreatedAt(),
 			status,
 			suggested,
-			score
+			score,
+			label
 		);
 	}
 
@@ -290,12 +369,7 @@ public class ThreadMessageService {
 		return decision.getStatus() == ModerationStatus.APPROVED;
 	}
 
-	private ModerationDecision buildModerationDecision(
-		ThreadDoc thread,
-		UUID senderAccountId,
-		String text,
-		Instant now
-	) {
+	private ModerationLevel resolveModerationLevel(ThreadDoc thread, UUID senderAccountId) {
 		List<UUID> memberIds = thread.getMembers()
 			.stream()
 			.filter(member -> member.getLeftAt() == null)
@@ -308,19 +382,20 @@ public class ThreadMessageService {
 			.toList();
 
 		if (recipients.isEmpty()) {
-			return approvedDecision(now, "Auto-approved");
+			return ModerationLevel.NONE;
 		}
 
-		ModerationLevel level = recipients.stream()
+		return recipients.stream()
 			.map(Child::getModerationLevel)
 			.max(Comparator.comparingInt(this::moderationLevelPriority))
 			.orElse(ModerationLevel.MANUAL);
+	}
 
-		ModerationSignal signal = evaluateModerationSignal(text);
+	private ModerationDecision buildInitialDecision(ModerationLevel level, Instant now) {
 		return switch (level) {
 			case NONE -> approvedDecision(now, "Auto-approved");
-			case AUTOMATED -> automatedDecision(signal, now);
-			case MANUAL -> manualDecision(signal);
+			case AUTOMATED -> pendingDecision("Automated moderation");
+			case MANUAL -> pendingDecision("Manual moderation");
 		};
 	}
 
@@ -332,20 +407,6 @@ public class ThreadMessageService {
 		};
 	}
 
-	private ModerationSignal evaluateModerationSignal(String text) {
-		if (text == null || text.isBlank()) {
-			return new ModerationSignal(ModerationStatus.APPROVED, 0.05);
-		}
-		String normalized = text.toLowerCase(Locale.ROOT);
-		boolean flagged = normalized.contains("hate")
-			|| normalized.contains("kill")
-			|| normalized.contains("stupid")
-			|| normalized.contains("idiot");
-		return flagged
-			? new ModerationSignal(ModerationStatus.REJECTED, 0.92)
-			: new ModerationSignal(ModerationStatus.APPROVED, 0.08);
-	}
-
 	private ModerationDecision approvedDecision(Instant now, String reason) {
 		ModerationDecision decision = new ModerationDecision();
 		decision.setStatus(ModerationStatus.APPROVED);
@@ -355,54 +416,11 @@ public class ThreadMessageService {
 		return decision;
 	}
 
-	private ModerationDecision automatedDecision(ModerationSignal signal, Instant now) {
-		ModerationDecision decision = new ModerationDecision();
-		decision.setStatus(signal.status());
-		decision.setDecidedAt(now);
-		decision.setDecidedByParentUsername("system");
-		decision.setReason("Automated moderation");
-		decision.setModelData(Map.of(
-			"suggestedStatus", signal.status().name(),
-			"score", signal.score()
-		));
-		return decision;
-	}
-
-	private ModerationDecision manualDecision(ModerationSignal signal) {
+	private ModerationDecision pendingDecision(String reason) {
 		ModerationDecision decision = new ModerationDecision();
 		decision.setStatus(ModerationStatus.PENDING);
-		decision.setReason("Manual moderation");
-		decision.setModelData(Map.of(
-			"suggestedStatus", signal.status().name(),
-			"score", signal.score()
-		));
+		decision.setReason(reason);
 		return decision;
-	}
-
-	private void pushMessageToMembers(ThreadDoc thread, MessageDoc message) {
-		MessageItemResponse payload = toResponse(message);
-		for (ThreadMember member : thread.getMembers()) {
-			if (member.getLeftAt() != null) {
-				continue;
-			}
-			UUID accountId = member.getAccountId();
-			if (accountId == null) {
-				continue;
-			}
-			Optional<User> user = userRepository.findById(accountId);
-			if (user.isPresent()) {
-				messagingTemplate.convertAndSendToUser(user.get().getLogin(), "/queue/messages", payload);
-				continue;
-			}
-			Optional<Child> child = childRepository.findById(accountId);
-			if (child.isEmpty()) {
-				continue;
-			}
-			if (!isApprovedForChild(message)) {
-				continue;
-			}
-			messagingTemplate.convertAndSendToUser(child.get().getDisplayName(), "/queue/messages", payload);
-		}
 	}
 
 	private String resolveApproverUsername(UUID approverAccountId) {
@@ -415,6 +433,4 @@ public class ThreadMessageService {
 	private record MessagePage(List<MessageDoc> docs, boolean hasMore, Instant nextBefore) {
 	}
 
-	private record ModerationSignal(ModerationStatus status, double score) {
-	}
 }

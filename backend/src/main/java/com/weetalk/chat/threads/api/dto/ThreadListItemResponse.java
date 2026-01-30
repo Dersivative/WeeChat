@@ -10,6 +10,7 @@ public class ThreadListItemResponse {
 	private Instant lastMessageAt;
 	private boolean unread;
 	private List<String> avatarUrls;
+	private List<String> memberAccountIds;
 
 	public ThreadListItemResponse(
 		String threadId,
@@ -17,7 +18,8 @@ public class ThreadListItemResponse {
 		String lastMessageText,
 		Instant lastMessageAt,
 		boolean unread,
-		List<String> avatarUrls
+		List<String> avatarUrls,
+		List<String> memberAccountIds
 	) {
 		this.threadId = threadId;
 		this.title = title;
@@ -25,6 +27,7 @@ public class ThreadListItemResponse {
 		this.lastMessageAt = lastMessageAt;
 		this.unread = unread;
 		this.avatarUrls = avatarUrls;
+		this.memberAccountIds = memberAccountIds;
 	}
 
 	public String getThreadId() {
@@ -49,5 +52,9 @@ public class ThreadListItemResponse {
 
 	public List<String> getAvatarUrls() {
 		return avatarUrls;
+	}
+
+	public List<String> getMemberAccountIds() {
+		return memberAccountIds;
 	}
 }

@@ -115,7 +115,7 @@ function ModerationQueuePanel({ apiBaseUrl, authFetch }: ModerationQueuePanelPro
         prev.map((thread) => ({
           ...thread,
           messages: thread.messages.map((message) =>
-            message.id === payload.id ? { ...message, status: payload.status } : message
+            message.id === payload.id ? { ...message, ...payload } : message
           ),
         }))
       )
@@ -144,14 +144,17 @@ function ModerationQueuePanel({ apiBaseUrl, authFetch }: ModerationQueuePanelPro
   }
 
   const renderStatusBadge = (message: ModerationMessage) => {
-    if (message.suggestedStatus) {
-      return (
-        <span className={`llm-badge ${message.suggestedStatus.toLowerCase()}`}>
-          LLM: {message.suggestedStatus.toLowerCase()}
-        </span>
-      )
+    if (!message.label) {
+      return <span className="llm-badge neutral">LLM: n/a</span>
     }
-    return <span className="llm-badge neutral">LLM: n/a</span>
+    const badgeClass = message.label.toLowerCase() === 'safe' ? 'approved' : 'rejected'
+    const score = message.score ? ` (${(message.score * 100).toFixed(1)}%)` : ''
+    return (
+      <span className={`llm-badge ${badgeClass}`}>
+        LLM: {message.label}
+        {score}
+      </span>
+    )
   }
 
   const selectedThread = threads.find((thread) => thread.threadId === selectedThreadId) ?? null

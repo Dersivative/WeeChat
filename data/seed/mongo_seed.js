@@ -1,9 +1,14 @@
 const dbInstance = db.getSiblingDB("weechat");
 
-dbInstance.threads.deleteMany({});
-dbInstance.messages.deleteMany({});
+const existingThreads = dbInstance.threads.countDocuments();
+const existingMessages = dbInstance.messages.countDocuments();
+if (existingThreads > 0 || existingMessages > 0) {
+  print("Seed skipped: threads/messages already exist.");
+} else {
+  // dbInstance.threads.deleteMany({});
+  // dbInstance.messages.deleteMany({});
 
-dbInstance.threads.insertMany([
+  dbInstance.threads.insertMany([
 	{
 		_id: "thread-001",
 		members: [
@@ -63,7 +68,7 @@ dbInstance.threads.insertMany([
 	}
 ]);
 
-dbInstance.messages.insertMany([
+  dbInstance.messages.insertMany([
 	{
 		_id: "msg-001",
 		threadId: "thread-001",
@@ -182,4 +187,5 @@ dbInstance.messages.insertMany([
 		deletedByAccountId: null,
 		createdAt: ISODate("2026-01-20T08:40:00Z")
 	}
-]);
+  ]);
+}

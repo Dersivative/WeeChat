@@ -5,6 +5,7 @@ export type ThreadListItem = {
   lastMessageAt: string | null
   unread: boolean
   avatarUrls: string[]
+  memberAccountIds: string[]
 }
 
 export type ThreadListResponse = {

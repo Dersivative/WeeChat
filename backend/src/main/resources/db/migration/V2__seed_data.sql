@@ -1,0 +1,62 @@
+-- Seed data
+
+INSERT INTO account (id, avatar_url, display_name) VALUES
+	('11111111-1111-1111-1111-111111111111', 'alice.png', 'Alice'),
+	('22222222-2222-2222-2222-222222222222', 'bob.png', 'Bob'),
+	('33333333-3333-3333-3333-333333333333', 'kaja.png', 'Kaja'),
+	('44444444-4444-4444-4444-444444444444', 'tomek.png', 'Tomek')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO app_user (id, login, email, password_hash, two_factor_enabled, two_factor_secret) VALUES
+	('11111111-1111-1111-1111-111111111111', 'alice', 'alice@example.com', '$2a$12$mMV4vrcXSvB1305V5Q2ZYedEfVYcDsf0HKfoWN12WAdEiUU/4QM6q', TRUE, '2fa-alice'),
+	('22222222-2222-2222-2222-222222222222', 'bob', 'bob@example.com', '$2a$12$mMV4vrcXSvB1305V5Q2ZYedEfVYcDsf0HKfoWN12WAdEiUU/4QM6q', FALSE, NULL)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO child (id, login_code_hash, login_code_expires_at, login_code_type, moderation_level) VALUES
+	('33333333-3333-3333-3333-333333333333', 'code-kaja', '2026-01-21T12:00:00Z', 'TEXT_CODE', 'MANUAL'),
+	('44444444-4444-4444-4444-444444444444', 'code-tomek', '2026-01-21T12:00:00Z', 'QR_CODE', 'AUTOMATED')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO parent_child (parent_id, child_id) VALUES
+	('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333333'),
+	('11111111-1111-1111-1111-111111111111', '44444444-4444-4444-4444-444444444444'),
+	('22222222-2222-2222-2222-222222222222', '44444444-4444-4444-4444-444444444444')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO account_friendship (
+	id,
+	requester_account_id,
+	addressee_account_id,
+	status,
+	requested_at,
+	decided_at,
+	decided_by_parent_username
+) VALUES
+	(
+		'55555555-5555-5555-5555-555555555555',
+		'11111111-1111-1111-1111-111111111111',
+		'22222222-2222-2222-2222-222222222222',
+		'ACCEPTED',
+		'2026-01-18T09:00:00Z',
+		'2026-01-19T10:00:00Z',
+		'alice'
+	),
+	(
+		'66666666-6666-6666-6666-666666666666',
+		'33333333-3333-3333-3333-333333333333',
+		'44444444-4444-4444-4444-444444444444',
+		'PENDING',
+		'2026-01-19T15:30:00Z',
+		NULL,
+		NULL
+	)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO account_block (id, blocker_account_id, blocked_account_id, created_at) VALUES
+	(
+		'77777777-7777-7777-7777-777777777777',
+		'22222222-2222-2222-2222-222222222222',
+		'33333333-3333-3333-3333-333333333333',
+		'2026-01-20T07:45:00Z'
+	)
+ON CONFLICT (id) DO NOTHING;

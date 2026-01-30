@@ -1,0 +1,68 @@
+@startuml
+hide circle
+skinparam classAttributeIconSize 0
+
+class Thread <<collection>> {
+  _id: string
+  createdAt: datetime
+  lastMessageAt: datetime
+  members: ThreadMember[*]
+}
+
+class ThreadMember <<embedded>> {
+  accountId: UUID  <<FK -> Postgres.account.id>>
+  joinedAt: datetime
+  leftAt: datetime?
+  lastReadAt: datetime?
+}
+
+class Message <<collection>> {
+  _id: string
+  threadId: string
+  senderAccountId: UUID  <<FK -> PostgreSQL account.id>>
+  text: string
+  attachments: Attachment[*]         <<UNUSED>>
+  deliveryStatuses: DeliveryStatus[*] <<UNUSED>>
+  moderationDecision: ModerationDecision
+  deletedAt: datetime?
+  deletedByAccountId: UUID?  <<FK -> PostgreSQL account.id>>
+  createdAt: datetime
+}
+
+class Attachment <<embedded>> #Salmon {
+  kind: "IMAGE" | "AUDIO"
+  filename: string
+  contentType: string
+  sizeBytes: int
+}
+
+class DeliveryStatus <<embedded>> #Salmon {
+  accountId: UUID  <<FK -> Postgres.account.id>>
+  state: "DELIVERED" | "READ"
+  updatedAt: datetime
+}
+
+class ModerationDecision <<embedded>> {
+  status: "APPROVED" | "PENDING"
+  decidedByParentUsername: string?
+  decidedAt: datetime?
+  reason: string?
+  modelData: ModelData
+}
+
+class ModelData <<embedded>> {
+  toxicity: float?
+  autoFlag: bool?
+}
+
+Thread "1" o-- "*" ThreadMember : members
+
+Message "1" o-- "*" Attachment : attachments <<NIEUŻYWANE>>
+Message "1" o-- "*" DeliveryStatus : deliveryStatuses <<NIEUŻYWANE>>
+
+Message "1" o-- "1" ModerationDecision : moderationDecision
+ModerationDecision "1" o-- "1" ModelData : modelData
+
+Message "*" ..> "1" Thread : threadId -> Thread._id
+
+@enduml

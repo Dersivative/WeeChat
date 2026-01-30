@@ -41,10 +41,12 @@ const isTokenExpiringSoon = (token: string, bufferSeconds: number) => {
 }
 
 function AppShell() {
-  const apiBaseUrl =
-    typeof import.meta.env.VITE_API_BASE_URL === 'string'
-      ? import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '')
-      : ''
+  const envApiBaseUrl =
+    typeof import.meta.env.VITE_API_BASE_URL === 'string' ? import.meta.env.VITE_API_BASE_URL.trim() : ''
+  const fallbackApiBaseUrl = `${window.location.protocol}//api.${window.location.hostname}${
+    window.location.port ? `:${window.location.port}` : ''
+  }`
+  const apiBaseUrl = (envApiBaseUrl || fallbackApiBaseUrl).replace(/\/$/, '')
   const [formState, setFormState] = useState({ login: '', password: '' })
   const [loginRole, setLoginRole] = useState<AccountType>('user')
   const [auth, setAuth] = useState<AuthState | null>(null)

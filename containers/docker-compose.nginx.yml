@@ -1,11 +1,24 @@
 version: "3.9"
 
 services:
-  nginx:
+  nginx-edge:
     image: nginx:1.27
-    container_name: chat-nginx
+    container_name: nginx-edge
     restart: unless-stopped
     ports:
-      - "8080:80"
+      - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/html:/usr/share/nginx/html:ro
+      - ./nginx/templates:/etc/nginx/templates:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    environment:
+      BASE_APP_URL: "${BASE_APP_URL}"
+      SSL_CERT_PATH: "${SSL_CERT_PATH}"
+      SSL_KEY_PATH: "${SSL_KEY_PATH}"
+    command:
+      [
+        "sh",
+        "-c",
+        "envsubst < /etc/nginx/templates/app-http.conf.template > /etc/nginx/conf.d/app-http.conf; if [ -n \"$SSL_CERT_PATH\" ] && [ -n \"$SSL_KEY_PATH\" ]; then envsubst < /etc/nginx/templates/app-https.conf.template > /etc/nginx/conf.d/app-https.conf; fi; exec nginx -g 'daemon off;'"
+      ]

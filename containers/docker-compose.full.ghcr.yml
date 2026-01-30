@@ -2,8 +2,7 @@ version: "3.9"
 
 services:
   backend:
-    build:
-      context: ../backend
+    image: ghcr.io/dersivative/weechat-backend:latest
     container_name: chat-backend
     restart: unless-stopped
     environment:
@@ -31,7 +30,6 @@ services:
       - pl-guard
     networks:
       - private
-      - public
 
   postgres:
     image: postgres:16
@@ -62,7 +60,7 @@ services:
       - private
 
   pl-guard:
-    build: ./pl-guard
+    image: ghcr.io/dersivative/weechat-pl-guard:latest
     container_name: pl-guard-weechat
     restart: unless-stopped
     environment:
@@ -96,6 +94,7 @@ services:
       - ./nginx/ssl:/etc/nginx/ssl:ro
     networks:
       - public
+      - private
     environment:
       BASE_APP_URL: "${BASE_APP_URL}"
       SSL_CERT_PATH: "${SSL_CERT_PATH}"
@@ -121,7 +120,7 @@ services:
       - ./nginx/templates:/etc/nginx/templates:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
     networks:
-      - public
+      - private
     environment:
       BASE_APP_URL: "${BASE_APP_URL}"
       SSL_CERT_PATH: "${SSL_CERT_PATH}"

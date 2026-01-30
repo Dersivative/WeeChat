@@ -1,9 +1,12 @@
 package com.weetalk.chat.auth.security;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -21,6 +24,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @EnableWebSecurity
 public class SecurityConfig {
 	private final JwtAuthenticationFilter jwtAuthenticationFilter;
+	@Value("${security.cors.allowed-origins:}")
+	private String corsAllowedOrigins;
 
 	public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
 		this.jwtAuthenticationFilter = jwtAuthenticationFilter;
@@ -48,7 +53,7 @@ public class SecurityConfig {
 	@Bean
 	CorsConfigurationSource corsConfigurationSource() {
 		CorsConfiguration cfg = new CorsConfiguration();
-		cfg.setAllowedOrigins(List.of("http://localhost:8081, http://localhost:8082, localhost:5173"));
+		cfg.setAllowedOrigins(resolveAllowedOrigins());
 		cfg.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS"));
 		cfg.setAllowedHeaders(List.of("Authorization","Content-Type"));
 		cfg.setAllowCredentials(true);
@@ -56,6 +61,16 @@ public class SecurityConfig {
 		UrlBasedCorsConfigurationSource src = new UrlBasedCorsConfigurationSource();
 		src.registerCorsConfiguration("/**", cfg);
 		return src;
+	}
+
+	private List<String> resolveAllowedOrigins() {
+		if (corsAllowedOrigins == null || corsAllowedOrigins.isBlank()) {
+			return List.of();
+		}
+		return Arrays.stream(corsAllowedOrigins.split(","))
+			.map(String::trim)
+			.filter(value -> !value.isEmpty())
+			.collect(Collectors.toList());
 	}
 
 

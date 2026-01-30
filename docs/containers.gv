@@ -1,0 +1,67 @@
+digraph compose_network {
+  graph [
+    rankdir=LR,
+    bgcolor="white",
+    fontname="Helvetica",
+    labelloc="t",
+    label="docker-compose (version: 3.9) — sieci i ekspozycja portów"
+  ];
+
+  node [shape=box, style="rounded,filled", fillcolor="white", fontname="Helvetica"];
+  edge [fontname="Helvetica"];
+
+  // --- Service nodes ---
+ backend   [label="chat-backend"];
+  postgres  [label="nchat-postgres-weechat"];
+  mongo     [label="chat-mongo-weechat"];
+  plguard   [label="pl-guard-weechat"];
+  nginx_edge [label="nginx-edge"];
+  nginx_cdn  [label="nginx-cdn"];
+
+  // --- Network clusters ---
+  subgraph cluster_private {
+    label="network: private (bridge, internal: true)";
+    color="gray70";
+    style="rounded";
+
+    backend;
+    postgres;
+    mongo;
+    nginx_cdn;
+
+    subgraph cluster_public {
+      label="network: public (bridge)";
+      color="gray70";
+      style="rounded";
+
+      nginx_edge;
+      plguard;
+    }
+  }
+
+  // --- External / host exposure ---
+  host [shape=oval, style="filled", fillcolor="gray95", label="Internet / Host"];
+  nginx_edge -> host [dir=both, label="HTTP/HTTPS: 80, 443"];
+
+  // --- Service-to-service dependencies / traffic (inferred from env + depends_on) ---
+  nginx_edge -> backend [dir=both, label="proxy: backend:8080", constraint=false];
+  nginx_edge -> nginx_cdn [dir=both, label="proxy: nginx-cdn:80", constraint=false];
+  backend -> postgres [dir=both, label="JDBC: postgres:5432/weechat_db"];
+  backend -> mongo    [dir=both, label="Mongo: mongo:27017 (authdb=admin)"];
+  backend -> plguard  [dir=both, label="HTTP: pl-guard:8000"];
+
+  // --- Compose depends_on (startup order) ---
+  backend -> postgres [style=dashed, color="gray50", label="depends_on"];
+  backend -> mongo    [style=dashed, color="gray50", label="depends_on"];
+  backend -> plguard  [style=dashed, color="gray50", label="depends_on"];
+
+  nginx_init [label="nginx-init\nchat-nginx-init\n(one-shot mkdir)", shape=box, style="rounded,filled", fillcolor="gray98"];
+
+  nginx_edge -> nginx_init [style=dashed, color="gray50", label="depends_on"];
+  nginx_cdn  -> nginx_init [style=dashed, color="gray50", label="depends_on"];
+
+  // --- Layout nudges ---
+  backend -> nginx_edge [style=invis, weight=10];
+
+  // --- Network membership is shown by nested clusters ---
+}

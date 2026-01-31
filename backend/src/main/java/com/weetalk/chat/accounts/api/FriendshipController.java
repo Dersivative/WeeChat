@@ -60,7 +60,7 @@ public class FriendshipController {
 	public ResponseEntity<List<FriendRequestResponse>> listPending(
 		@AuthenticationPrincipal AuthUserPrincipal principal
 	) {
-		return ResponseEntity.ok(friendshipService.listPendingForParent(principal.getAccountId()));
+		return ResponseEntity.ok(friendshipService.listPendingForAccount(principal.getAccountId()));
 	}
 
 	@PostMapping("/requests/{requestId}/accept")

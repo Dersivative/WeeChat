@@ -11,12 +11,17 @@ type ThreadListProps = {
 function ThreadList({ threads, loading, error, selectedThreadId, onSelectThread }: ThreadListProps) {
   const formatTimestamp = (value?: string | null) => {
     if (!value) {
-      return 'No activity yet'
+      return { time: 'No activity', date: '' }
     }
-    return new Date(value).toLocaleString()
+    const date = new Date(value)
+    return {
+      time: date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }),
+      date: date.toLocaleDateString(),
+    }
   }
 
   const fallbackTitle = (title: string) => title.slice(0, 2).toUpperCase()
+  const truncatePreview = (value: string) => value.slice(0, 20)
 
   return (
     <section className="thread-list">
@@ -54,10 +59,18 @@ function ThreadList({ threads, loading, error, selectedThreadId, onSelectThread 
           </div>
           <div className="thread-body">
             <h3>{thread.title}</h3>
-            <p className="thread-preview">{thread.lastMessageText}</p>
+            <p className="thread-preview">{truncatePreview(thread.lastMessageText)}</p>
           </div>
           <div className="thread-meta">
-            <span>{formatTimestamp(thread.lastMessageAt)}</span>
+            {(() => {
+              const timestamp = formatTimestamp(thread.lastMessageAt)
+              return (
+                <>
+                  <span>{timestamp.time}</span>
+                  {timestamp.date ? <span className="thread-date">{timestamp.date}</span> : null}
+                </>
+              )
+            })()}
           </div>
         </button>
       ))}

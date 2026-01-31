@@ -21,13 +21,13 @@ function UserLoginPanel({
   return (
     <section className="form-panel">
       <h2>Login</h2>
-      <p className="hint">Use the account credentials from the backend seed data.</p>
+      <p className="hint">Type in your credentials.</p>
       <form className="form-grid" onSubmit={onLoginSubmit}>
         <label className="field">
           Username
           <input
             type="text"
-            placeholder="alice"
+            placeholder="Login"
             value={formState.login}
             onChange={(event) => onFormChange('login', event.target.value)}
             required
@@ -37,7 +37,7 @@ function UserLoginPanel({
           Password
           <input
             type="password"
-            placeholder="hash-alice"
+            placeholder="Password"
             value={formState.password}
             onChange={(event) => onFormChange('password', event.target.value)}
             required

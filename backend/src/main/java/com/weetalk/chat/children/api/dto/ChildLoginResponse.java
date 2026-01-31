@@ -6,13 +6,11 @@ public class ChildLoginResponse {
 	private final UUID accountId;
 	private final String displayName;
 	private final String avatarUrl;
-	private final String accessToken;
 
-	public ChildLoginResponse(UUID accountId, String displayName, String avatarUrl, String accessToken) {
+	public ChildLoginResponse(UUID accountId, String displayName, String avatarUrl) {
 		this.accountId = accountId;
 		this.displayName = displayName;
 		this.avatarUrl = avatarUrl;
-		this.accessToken = accessToken;
 	}
 
 	public UUID getAccountId() {
@@ -25,9 +23,5 @@ public class ChildLoginResponse {
 
 	public String getAvatarUrl() {
 		return avatarUrl;
-	}
-
-	public String getAccessToken() {
-		return accessToken;
 	}
 }

@@ -15,9 +15,11 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 	private final JwtService jwtService;
+	private final AuthCookieService authCookieService;
 
-	public JwtAuthenticationFilter(JwtService jwtService) {
+	public JwtAuthenticationFilter(JwtService jwtService, AuthCookieService authCookieService) {
 		this.jwtService = jwtService;
+		this.authCookieService = authCookieService;
 	}
 
 	@Override
@@ -34,8 +36,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 	) throws ServletException, IOException {
 		String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
 		if (authorization == null || authorization.isBlank()) {
-			filterChain.doFilter(request, response);
-			return;
+			String cookieToken = authCookieService.readCookie(request, authCookieService.getAccessCookieName());
+			if (cookieToken == null || cookieToken.isBlank()) {
+				filterChain.doFilter(request, response);
+				return;
+			}
+			authorization = "Bearer " + cookieToken;
 		}
 
 		String token = authorization.trim();

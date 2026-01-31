@@ -3,10 +3,13 @@ package com.weetalk.chat.threads.application;
 import com.weetalk.chat.accounts.domain.Account;
 import com.weetalk.chat.accounts.infrastructure.AccountRepository;
 import com.weetalk.chat.media.MediaUrlResolver;
+import com.weetalk.chat.moderation.domain.ModerationDecision;
+import com.weetalk.chat.moderation.domain.ModerationStatus;
 import com.weetalk.chat.messages.domain.MessageDeliveryState;
 import com.weetalk.chat.messages.domain.MessageDeliveryStatus;
 import com.weetalk.chat.messages.infrastructure.mongo.MessageDoc;
 import com.weetalk.chat.messages.infrastructure.mongo.MessageRepository;
+import com.weetalk.chat.children.infrastructure.ChildRepository;
 import com.weetalk.chat.threads.api.dto.ThreadListItemResponse;
 import com.weetalk.chat.threads.api.dto.ThreadListResponse;
 import com.weetalk.chat.threads.infrastructure.mongo.ThreadDoc;
@@ -21,6 +24,8 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -31,23 +36,27 @@ public class ThreadListService {
 	private final ThreadRepository threadRepository;
 	private final MessageRepository messageRepository;
 	private final AccountRepository accountRepository;
+	private final ChildRepository childRepository;
 	private final MediaUrlResolver mediaUrlResolver;
 
 	public ThreadListService(
 		ThreadRepository threadRepository,
 		MessageRepository messageRepository,
 		AccountRepository accountRepository,
+		ChildRepository childRepository,
 		MediaUrlResolver mediaUrlResolver
 	) {
 		this.threadRepository = threadRepository;
 		this.messageRepository = messageRepository;
 		this.accountRepository = accountRepository;
+		this.childRepository = childRepository;
 		this.mediaUrlResolver = mediaUrlResolver;
 	}
 
 	public ThreadListResponse listThreads(UUID viewerAccountId) {
 		List<ThreadDoc> threads = threadRepository
 			.findByMembersAccountIdAndMembersLeftAtIsNullOrderByLastMessageAtDesc(viewerAccountId);
+		boolean isChild = viewerAccountId != null && childRepository.existsById(viewerAccountId);
 
 		List<UUID> accountIds = threads.stream()
 			.flatMap(thread -> activeMembers(thread).stream())
@@ -63,8 +72,10 @@ public class ThreadListService {
 		List<ThreadListItemResponse> items = new ArrayList<>();
 		for (ThreadDoc thread : threads) {
 			List<ThreadMember> members = activeMembers(thread);
-			MessageDoc lastMessage = messageRepository.findTopByThreadIdOrderByCreatedAtDesc(thread.getId());
-			items.add(toListItem(thread, members, accounts, viewerAccountId, lastMessage));
+			MessageDoc lastMessage = isChild
+				? findLastApprovedMessage(thread.getId())
+				: messageRepository.findTopByThreadIdOrderByCreatedAtDesc(thread.getId());
+			items.add(toListItem(thread, members, accounts, viewerAccountId, lastMessage, isChild));
 		}
 
 		items.sort(Comparator.comparing(ThreadListItemResponse::getLastMessageAt, Comparator.nullsLast(Comparator.naturalOrder()))
@@ -78,7 +89,8 @@ public class ThreadListService {
 		List<ThreadMember> members,
 		Map<UUID, Account> accounts,
 		UUID viewerAccountId,
-		MessageDoc lastMessage
+		MessageDoc lastMessage,
+		boolean isChild
 	) {
 		String title = resolveTitle(thread, members, accounts, viewerAccountId);
 		List<String> avatarUrls = resolveAvatars(members, accounts, viewerAccountId);
@@ -88,7 +100,7 @@ public class ThreadListService {
 			.map(UUID::toString)
 			.toList();
 		String lastMessageText = resolveLastMessageText(lastMessage);
-		Instant lastMessageAt = resolveLastMessageAt(thread, lastMessage);
+		Instant lastMessageAt = resolveLastMessageAt(thread, lastMessage, !isChild);
 		boolean unread = isUnread(lastMessage, viewerAccountId);
 
 		return new ThreadListItemResponse(
@@ -181,12 +193,51 @@ public class ThreadListService {
 		return lastMessage.getText();
 	}
 
-	private Instant resolveLastMessageAt(ThreadDoc thread, MessageDoc lastMessage) {
+	private MessageDoc findLastApprovedMessage(String threadId) {
+		if (threadId == null) {
+			return null;
+		}
+		PageRequest pageRequest = PageRequest.of(0, 25);
+		Instant cursor = null;
+
+		while (true) {
+			Page<MessageDoc> page = cursor == null
+				? messageRepository.findByThreadIdOrderByCreatedAtDesc(threadId, pageRequest)
+				: messageRepository.findByThreadIdAndCreatedAtBeforeOrderByCreatedAtDesc(threadId, cursor, pageRequest);
+			List<MessageDoc> docs = page.getContent();
+			if (docs.isEmpty()) {
+				return null;
+			}
+			for (MessageDoc message : docs) {
+				if (isApprovedForChild(message)) {
+					return message;
+				}
+			}
+			if (!page.hasNext()) {
+				return null;
+			}
+			MessageDoc lastDoc = docs.get(docs.size() - 1);
+			cursor = lastDoc.getCreatedAt();
+			if (cursor == null) {
+				return null;
+			}
+		}
+	}
+
+	private boolean isApprovedForChild(MessageDoc message) {
+		ModerationDecision decision = message.getModerationDecision();
+		if (decision == null) {
+			return false;
+		}
+		return decision.getStatus() == ModerationStatus.APPROVED;
+	}
+
+	private Instant resolveLastMessageAt(ThreadDoc thread, MessageDoc lastMessage, boolean allowThreadFallback) {
 		if (lastMessage != null && lastMessage.getCreatedAt() != null) {
 			return lastMessage.getCreatedAt();
 		}
 
-		return thread.getLastMessageAt();
+		return allowThreadFallback ? thread.getLastMessageAt() : null;
 	}
 
 	private boolean isUnread(MessageDoc lastMessage, UUID viewerAccountId) {

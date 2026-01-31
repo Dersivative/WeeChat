@@ -11,6 +11,7 @@ import com.weetalk.chat.children.domain.ChildLoginCodeType;
 import com.weetalk.chat.children.domain.ModerationLevel;
 import com.weetalk.chat.children.infrastructure.ChildRepository;
 import com.weetalk.chat.media.MediaUrlResolver;
+import com.weetalk.chat.auth.security.AuthUserPrincipal;
 import com.weetalk.chat.auth.security.JwtService;
 import java.security.SecureRandom;
 import java.time.Duration;
@@ -95,7 +96,7 @@ public class ChildAuthService {
 	}
 
 	@Transactional
-	public ChildLoginResponse loginWithToken(String token) {
+	public ChildLoginResult loginWithToken(String token) {
 		String normalizedToken = token == null ? null : token.trim();
 		if (normalizedToken == null || normalizedToken.isBlank()) {
 			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid child login");
@@ -120,11 +121,37 @@ public class ChildAuthService {
 
 		clearLoginToken(matched);
 		String accessToken = jwtService.generateAccessToken(matched.getId(), matched.getDisplayName());
-		return new ChildLoginResponse(
-			matched.getId(),
-			matched.getDisplayName(),
-			mediaUrlResolver.resolveAvatarUrl(matched.getAvatarFileName()),
-			accessToken
+		String refreshToken = jwtService.generateRefreshToken(matched.getId(), matched.getDisplayName());
+		return new ChildLoginResult(
+			new ChildLoginResponse(
+				matched.getId(),
+				matched.getDisplayName(),
+				mediaUrlResolver.resolveAvatarUrl(matched.getAvatarFileName())
+			),
+			accessToken,
+			refreshToken
+		);
+	}
+
+	@Transactional(readOnly = true)
+	public ChildLoginResult refreshWithToken(String refreshToken) {
+		String normalizedToken = refreshToken == null ? null : refreshToken.trim();
+		if (normalizedToken == null || normalizedToken.isBlank()) {
+			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid refresh token");
+		}
+		AuthUserPrincipal principal = jwtService.parseRefreshToken(normalizedToken);
+		Child matched = childRepository.findById(principal.getAccountId())
+			.orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid refresh token"));
+		String accessToken = jwtService.generateAccessToken(matched.getId(), matched.getDisplayName());
+		String nextRefreshToken = jwtService.generateRefreshToken(matched.getId(), matched.getDisplayName());
+		return new ChildLoginResult(
+			new ChildLoginResponse(
+				matched.getId(),
+				matched.getDisplayName(),
+				mediaUrlResolver.resolveAvatarUrl(matched.getAvatarFileName())
+			),
+			accessToken,
+			nextRefreshToken
 		);
 	}
 

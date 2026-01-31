@@ -51,7 +51,7 @@ function AccountMenu({
                   Moderation Settings
                 </button>
                 <button className="menu-item" type="button" onClick={() => onSelectPanel('moderation-queue')}>
-                  Moderate Messages
+                  Moderatation Panel
                 </button>
               </div>
               <hr className="menu-separator" />

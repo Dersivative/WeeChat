@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
+	private static final String SESSION_ACCESS_TOKEN_KEY = "accessToken";
 	private final JwtService jwtService;
 
 	public WebSocketAuthChannelInterceptor(JwtService jwtService) {
@@ -56,6 +57,12 @@ public class WebSocketAuthChannelInterceptor implements ChannelInterceptor {
 			authorization = getFirstNativeHeader(accessor, "authorization");
 		}
 		if (authorization == null || authorization.isBlank()) {
+			Object sessionToken = accessor.getSessionAttributes() == null
+				? null
+				: accessor.getSessionAttributes().get(SESSION_ACCESS_TOKEN_KEY);
+			if (sessionToken instanceof String tokenValue && !tokenValue.isBlank()) {
+				return tokenValue;
+			}
 			throw new BadCredentialsException("Missing Authorization header");
 		}
 

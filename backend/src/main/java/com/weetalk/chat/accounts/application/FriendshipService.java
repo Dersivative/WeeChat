@@ -13,6 +13,7 @@ import com.weetalk.chat.accounts.infrastructure.AccountRepository;
 import com.weetalk.chat.accounts.infrastructure.UserRepository;
 import com.weetalk.chat.children.domain.Child;
 import com.weetalk.chat.children.infrastructure.ChildRepository;
+import com.weetalk.chat.media.MediaUrlResolver;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -32,17 +33,20 @@ public class FriendshipService {
 	private final AccountRepository accountRepository;
 	private final UserRepository userRepository;
 	private final ChildRepository childRepository;
+	private final MediaUrlResolver mediaUrlResolver;
 
 	public FriendshipService(
 		AccountFriendshipRepository friendshipRepository,
 		AccountRepository accountRepository,
 		UserRepository userRepository,
-		ChildRepository childRepository
+		ChildRepository childRepository,
+		MediaUrlResolver mediaUrlResolver
 	) {
 		this.friendshipRepository = friendshipRepository;
 		this.accountRepository = accountRepository;
 		this.userRepository = userRepository;
 		this.childRepository = childRepository;
+		this.mediaUrlResolver = mediaUrlResolver;
 	}
 
 	@Transactional(readOnly = true)
@@ -141,17 +145,21 @@ public class FriendshipService {
 	}
 
 	@Transactional(readOnly = true)
-	public List<FriendRequestResponse> listPendingForParent(UUID parentId) {
-		Optional<User> parent = userRepository.findById(parentId);
-		if (parent.isEmpty()) {
-			return List.of();
-		}
-		Set<UUID> childIds = parent.get().getChildren().stream().map(Account::getId).collect(Collectors.toSet());
-		if (childIds.isEmpty()) {
-			return List.of();
+	public List<FriendRequestResponse> listPendingForAccount(UUID accountId) {
+		Optional<User> parent = userRepository.findById(accountId);
+		if (parent.isPresent()) {
+			Set<UUID> addresseeIds = parent.get().getChildren().stream()
+				.map(Account::getId)
+				.collect(Collectors.toSet());
+			addresseeIds.add(accountId);
+			return friendshipRepository
+				.findByStatusAndAddresseeIdIn(FriendshipStatus.PENDING, addresseeIds)
+				.stream()
+				.map(this::toFriendRequestResponse)
+				.toList();
 		}
 		return friendshipRepository
-			.findByStatusAndAddresseeIdIn(FriendshipStatus.PENDING, childIds)
+			.findByStatusAndAddresseeIdIn(FriendshipStatus.PENDING, List.of(accountId))
 			.stream()
 			.map(this::toFriendRequestResponse)
 			.toList();
@@ -204,7 +212,11 @@ public class FriendshipService {
 	}
 
 	private FriendListItemResponse toFriendListItem(Account account) {
-		return new FriendListItemResponse(account.getId(), account.getDisplayName(), account.getAvatarFileName());
+		return new FriendListItemResponse(
+			account.getId(),
+			account.getDisplayName(),
+			mediaUrlResolver.resolveAvatarUrl(account.getAvatarFileName())
+		);
 	}
 
 	private FriendSearchResultResponse toSearchResult(Account account, String type, Set<UUID> pendingFriendIds) {
@@ -212,7 +224,7 @@ public class FriendshipService {
 		return new FriendSearchResultResponse(
 			account.getId(),
 			account.getDisplayName(),
-			account.getAvatarFileName(),
+			mediaUrlResolver.resolveAvatarUrl(account.getAvatarFileName()),
 			type,
 			status
 		);
@@ -225,10 +237,10 @@ public class FriendshipService {
 			friendship.getId(),
 			requester.getId(),
 			requester.getDisplayName(),
-			requester.getAvatarFileName(),
+			mediaUrlResolver.resolveAvatarUrl(requester.getAvatarFileName()),
 			addressee.getId(),
 			addressee.getDisplayName(),
-			addressee.getAvatarFileName(),
+			mediaUrlResolver.resolveAvatarUrl(addressee.getAvatarFileName()),
 			friendship.getStatus().name(),
 			friendship.getRequestedAt()
 		);

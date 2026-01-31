@@ -1,7 +1,12 @@
+import { BrowserRouter } from 'react-router-dom'
 import { AppShell } from '../widgets/app'
 
 function App() {
-  return <AppShell />
+  return (
+    <BrowserRouter>
+      <AppShell />
+    </BrowserRouter>
+  )
 }
 
 export default App

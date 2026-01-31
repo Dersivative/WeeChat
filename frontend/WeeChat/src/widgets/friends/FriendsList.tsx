@@ -1,19 +1,28 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { FriendListItem, FriendSearchResponse, FriendSearchResult } from '../../entities/friendship'
+import type {
+  FriendListItem,
+  FriendRequestItem,
+  FriendSearchResponse,
+  FriendSearchResult,
+} from '../../entities/friendship'
 import type { AuthFetch } from '../../shared/apiClient'
 
 type FriendsListProps = {
   apiBaseUrl: string
   authFetch: AuthFetch
+  currentAccountId?: string | null
   onSelectFriend: (accountId: string) => void
 }
 
 type InviteState = 'idle' | 'sending' | 'sent'
 
-function FriendsList({ apiBaseUrl, authFetch, onSelectFriend }: FriendsListProps) {
+function FriendsList({ apiBaseUrl, authFetch, currentAccountId, onSelectFriend }: FriendsListProps) {
   const [friends, setFriends] = useState<FriendListItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [friendRequests, setFriendRequests] = useState<FriendRequestItem[]>([])
+  const [friendRequestsLoading, setFriendRequestsLoading] = useState(false)
+  const [friendRequestsError, setFriendRequestsError] = useState<string | null>(null)
 
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchEmail, setSearchEmail] = useState('')
@@ -43,9 +52,34 @@ function FriendsList({ apiBaseUrl, authFetch, onSelectFriend }: FriendsListProps
     }
   }, [apiBaseUrl, authFetch])
 
+  const loadFriendRequests = useCallback(async () => {
+    if (!currentAccountId) {
+      setFriendRequests([])
+      return
+    }
+    setFriendRequestsLoading(true)
+    setFriendRequestsError(null)
+    try {
+      const response = await authFetch(`${apiBaseUrl}/api/friends/requests/pending`)
+      if (!response.ok) {
+        throw new Error('Could not load friend requests.')
+      }
+      const payload = (await response.json()) as FriendRequestItem[]
+      setFriendRequests(payload)
+    } catch (requestError) {
+      setFriendRequestsError(requestError instanceof Error ? requestError.message : 'Could not load friend requests.')
+    } finally {
+      setFriendRequestsLoading(false)
+    }
+  }, [apiBaseUrl, authFetch, currentAccountId])
+
   useEffect(() => {
     void loadFriends()
   }, [loadFriends])
+
+  useEffect(() => {
+    void loadFriendRequests()
+  }, [loadFriendRequests])
 
   useEffect(() => {
     if (!loadMoreRef.current) {
@@ -106,6 +140,26 @@ function FriendsList({ apiBaseUrl, authFetch, onSelectFriend }: FriendsListProps
     }
   }
 
+  const handleFriendRequestDecision = async (requestId: string, action: 'accept' | 'reject') => {
+    try {
+      const response = await authFetch(`${apiBaseUrl}/api/friends/requests/${requestId}/${action}`, {
+        method: 'POST',
+      })
+      if (!response.ok) {
+        const message = await response.text()
+        throw new Error(message || 'Could not update friend request.')
+      }
+      setFriendRequests((prev) => prev.filter((request) => request.id !== requestId))
+      if (action === 'accept') {
+        void loadFriends()
+      }
+    } catch (requestError) {
+      setFriendRequestsError(
+        requestError instanceof Error ? requestError.message : 'Could not update friend request.'
+      )
+    }
+  }
+
   const closeSearch = () => {
     setSearchOpen(false)
     setSearchEmail('')
@@ -129,6 +183,9 @@ function FriendsList({ apiBaseUrl, authFetch, onSelectFriend }: FriendsListProps
 
   const fallbackTitle = (title: string) => title.slice(0, 2).toUpperCase()
   const visibleFriends = friends.slice(0, visibleCount)
+  const pendingRequests = currentAccountId
+    ? friendRequests.filter((request) => request.addresseeAccountId === currentAccountId)
+    : []
 
   return (
     <section className="thread-panel friends-panel">
@@ -140,6 +197,50 @@ function FriendsList({ apiBaseUrl, authFetch, onSelectFriend }: FriendsListProps
         {error ? <p className="form-error">{error}</p> : null}
         {loading ? <p className="status">Loading friends...</p> : null}
         <div className="thread-list" ref={listContainerRef}>
+          {friendRequestsError ? <p className="form-error">{friendRequestsError}</p> : null}
+          {friendRequestsLoading ? <p className="status">Loading friend requests...</p> : null}
+          {!friendRequestsLoading && pendingRequests.length > 0 ? (
+            <div className="friend-requests">
+              <p className="status">Pending friend requests</p>
+              {pendingRequests.map((request) => (
+                <div className="friend-request-card" key={request.id}>
+                  <div className="thread-avatar">
+                    {request.requesterAvatarUrl ? (
+                      <img className="avatar" src={request.requesterAvatarUrl} alt="" />
+                    ) : (
+                      <div className="avatar avatar-fallback">
+                        {request.requesterDisplayName.slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <div className="thread-body">
+                    <h3>{request.requesterDisplayName}</h3>
+                    <p className="thread-preview">
+                      Requested {new Date(request.requestedAt).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="thread-meta">
+                    <div className="friend-request-actions">
+                      <button
+                        className="icon-button approve"
+                        type="button"
+                        onClick={() => handleFriendRequestDecision(request.id, 'accept')}
+                      >
+                        ✓
+                      </button>
+                      <button
+                        className="icon-button reject"
+                        type="button"
+                        onClick={() => handleFriendRequestDecision(request.id, 'reject')}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
           {!loading && !error && friends.length === 0 ? <p className="status">{friendsEmptyState}</p> : null}
           {visibleFriends.map((friend) => (
             <button

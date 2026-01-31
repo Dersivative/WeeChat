@@ -3,6 +3,10 @@ digraph compose_network {
     rankdir=LR,
     bgcolor="white",
     fontname="Helvetica",
+    overlap=false,
+    splines=true,
+    nodesep=0.5,
+    ranksep=0.6,
     labelloc="t",
     label="docker-compose (version: 3.9) — sieci i ekspozycja portów"
   ];
@@ -22,6 +26,7 @@ digraph compose_network {
   subgraph cluster_private {
     label="network: private (bridge, internal: true)";
     color="gray70";
+    fontcolor="navy";
     style="rounded";
 
     backend;
@@ -32,6 +37,7 @@ digraph compose_network {
     subgraph cluster_public {
       label="network: public (bridge)";
       color="gray70";
+      fontcolor="navy";
       style="rounded";
 
       nginx_edge;

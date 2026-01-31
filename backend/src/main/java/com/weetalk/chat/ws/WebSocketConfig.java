@@ -13,17 +13,23 @@ import java.util.Arrays;
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 	private final WebSocketAuthChannelInterceptor authChannelInterceptor;
+	private final WebSocketCookieHandshakeInterceptor cookieHandshakeInterceptor;
 	@Value("${security.cors.allowed-origins:}")
 	private String corsAllowedOrigins;
 
-	public WebSocketConfig(WebSocketAuthChannelInterceptor authChannelInterceptor) {
+	public WebSocketConfig(
+		WebSocketAuthChannelInterceptor authChannelInterceptor,
+		WebSocketCookieHandshakeInterceptor cookieHandshakeInterceptor
+	) {
 		this.authChannelInterceptor = authChannelInterceptor;
+		this.cookieHandshakeInterceptor = cookieHandshakeInterceptor;
 	}
 
 	@Override
 	public void registerStompEndpoints(StompEndpointRegistry registry) {
 		registry.addEndpoint("/ws")
-			.setAllowedOriginPatterns(resolveAllowedOriginPatterns());
+			.setAllowedOriginPatterns(resolveAllowedOriginPatterns())
+			.addInterceptors(cookieHandshakeInterceptor);
 	}
 
 	@Override

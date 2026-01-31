@@ -384,6 +384,16 @@
 .thread-meta {
   color: #6f6b85;
   font-weight: 600;
+  text-align: right;
+}
+
+.thread-meta span {
+  display: block;
+}
+
+.thread-meta .thread-date {
+  font-size: 0.85rem;
+  font-weight: 500;
 }
 
 .chat-body {
@@ -688,6 +698,29 @@
   display: grid;
   gap: 1.5rem;
   width: 100%;
+}
+
+.friend-requests {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.friend-request-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem;
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid rgba(201, 214, 232, 0.6);
+}
+
+.friend-request-actions {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
 }
 
 

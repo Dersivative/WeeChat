@@ -60,6 +60,10 @@ public class JwtService {
 		return generateToken(accountId, login, TOKEN_TYPE_ACCESS, accessTokenTtl);
 	}
 
+	public String generateRefreshToken(UUID accountId, String login) {
+		return generateToken(accountId, login, TOKEN_TYPE_REFRESH, refreshTokenTtl);
+	}
+
 	public AuthUserPrincipal parseAccessToken(String token) {
 		return parseToken(token, TOKEN_TYPE_ACCESS);
 	}

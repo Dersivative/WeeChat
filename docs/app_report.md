@@ -17,6 +17,7 @@ WeeChat to aplikacja czatu z naciskiem na bezpieczeństwo dzieci w sieci. Wsparc
 - `POST /api/auth/refresh` - odświeżenie tokenu.
 - `POST /api/auth/logout` - wylogowanie (czyszczenie cookies).
 - `POST /api/children/login` - logowanie dziecka kodem.
+- `POST /api/children/refresh` - odświeżenie sesji dziecka.
 
 **Zarządzanie dziećmi**
 - `GET /api/children` - lista dzieci przypisanych do rodzica.
@@ -31,7 +32,7 @@ WeeChat to aplikacja czatu z naciskiem na bezpieczeństwo dzieci w sieci. Wsparc
 - `GET /api/friends` - lista znajomych.
 - `GET /api/friends/search?email=...` - wyszukiwanie po emailu.
 - `POST /api/friends/requests` - prośba o znajomość.
-- `GET /api/friends/requests/pending` - oczekujące prośby.
+- `GET /api/friends/requests/pending` - oczekujące prośby (dla rodzica i jego dzieci).
 - `POST /api/friends/requests/{requestId}/accept` - akceptacja.
 - `POST /api/friends/requests/{requestId}/reject` - odrzucenie.
 - Statusy relacji: `PENDING`, `ACCEPTED`, `REJECTED`.
@@ -110,16 +111,20 @@ WeeChat to aplikacja czatu z naciskiem na bezpieczeństwo dzieci w sieci. Wsparc
   - Akceptacja/odrzucenie próśb o znajomość.
 - **Czat**:
   - Lista wątków, podgląd ostatnich wiadomości, wskaźniki nieprzeczytanych.
+  - Podgląd ostatniej wiadomości ucinany do 20 znaków; data w timestampie pod godziną.
   - Widok wątku z paginacją wsteczną.
   - Wysyłanie wiadomości w istniejących wątkach i start rozmów bezpośrednich.
 - **Realtime**:
   - WebSocket STOMP do aktualizacji listy wątków i napływających wiadomości.
+- **Routing (slugi)**:
+  - `/chats`, `/friends`, `/children`, `/moderation/settings`, `/moderation/queue`.
+  - `/threads/*` traktowane jako alias widoku czatów (bez selekcji wątku).
 
 ### 9) Bezpieczeństwo po stronie frontendu
 - Tokeny przechowywane w **cookie** (persistencja sesji).
 - **Access token** jest krótko żyjący, a **refresh token** długo żyjący.
-- Automatyczne odświeżanie access tokenu przed wygaśnięciem.
-- Autoryzacja żądań przez nagłówek `Authorization: Bearer <token>`.
+- Automatyczne odświeżanie access tokenu co 4 minuty i retry na 401 dla user/child.
+- Autoryzacja żądań przez cookie (fetch z `credentials: include`).
 - UI różnicuje funkcje rodzica i dziecka (np. panele moderacji dostępne tylko dla rodzica).
 
 ### 10) Konfiguracja i parametry runtime

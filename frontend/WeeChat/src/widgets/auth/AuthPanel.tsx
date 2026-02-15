@@ -1,12 +1,15 @@
-import { type FormEvent } from 'react'
+import { type FormEvent, useState } from 'react'
 import ChildLoginPanel from '../../features/auth/ui/ChildLoginPanel'
 import UserLoginPanel from '../../features/auth/ui/UserLoginPanel'
 import type { AccountType } from '../../entities/account'
+import type { RegisterRequest } from '../../shared/apiClient'
 
 type AuthPanelProps = {
   formState: {
     login: string
     password: string
+    email?: string
+    displayName?: string
   }
   role: AccountType
   loginLoading: boolean
@@ -14,8 +17,9 @@ type AuthPanelProps = {
   childLoginLoading: boolean
   childLoginError: string | null
   onRoleChange: (role: AccountType) => void
-  onFormChange: (field: 'login' | 'password', value: string) => void
+  onFormChange: (field: string, value: string) => void
   onLoginSubmit: (event: FormEvent<HTMLFormElement>) => void
+  onRegisterSubmit: (data: RegisterRequest) => void
   onChildLoginSubmit: (code: string) => void
 }
 
@@ -29,8 +33,32 @@ function AuthPanel({
   onRoleChange,
   onFormChange,
   onLoginSubmit,
+  onRegisterSubmit,
   onChildLoginSubmit,
 }: AuthPanelProps) {
+  
+  const [isRegistering, setIsRegistering] = useState(false)
+
+  const handleUserSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    
+    if (isRegistering) {
+      onRegisterSubmit({
+        login: formState.login,
+        password: formState.password,
+        email: formState.email || '',
+        displayName: formState.displayName || ''
+      })
+    } else {
+      onLoginSubmit(event)
+    }
+  }
+
+  const handleRoleChange = (newRole: AccountType) => {
+    setIsRegistering(false)
+    onRoleChange(newRole)
+  }
+
   return (
     <>
       <section className="role-switch">
@@ -40,14 +68,14 @@ function AuthPanel({
           <button
             className={role === 'user' ? 'active' : ''}
             type="button"
-            onClick={() => onRoleChange('user')}
+            onClick={() => handleRoleChange('user')}
           >
             Parent
           </button>
           <button
             className={role === 'child' ? 'active' : ''}
             type="button"
-            onClick={() => onRoleChange('child')}
+            onClick={() => handleRoleChange('child')}
           >
             Child
           </button>
@@ -57,13 +85,21 @@ function AuthPanel({
       {role === 'user' ? (
         <UserLoginPanel
           formState={formState}
-          loginError={loginError}
-          loginLoading={loginLoading}
+          // POPRAWKA: Przekazujemy 'loginError' do propsa 'error'
+          error={loginError}
+          // POPRAWKA: Przekazujemy 'loginLoading' do propsa 'loading'
+          loading={loginLoading}
           onFormChange={onFormChange}
-          onLoginSubmit={onLoginSubmit}
+          onSubmit={handleUserSubmit} 
+          isRegistering={isRegistering}
+          onToggleMode={() => setIsRegistering(!isRegistering)}
         />
       ) : (
-        <ChildLoginPanel onBackupSubmit={onChildLoginSubmit} loading={childLoginLoading} error={childLoginError} />
+        <ChildLoginPanel 
+          onBackupSubmit={onChildLoginSubmit} 
+          loading={childLoginLoading} 
+          error={childLoginError} 
+        />
       )}
     </>
   )

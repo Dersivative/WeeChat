@@ -5,6 +5,7 @@ import com.weetalk.chat.accounts.infrastructure.UserRepository;
 import com.weetalk.chat.auth.api.dto.LoginRequest;
 import com.weetalk.chat.auth.api.dto.LoginResponse;
 import com.weetalk.chat.auth.api.dto.RefreshTokenRequest;
+import com.weetalk.chat.auth.api.dto.RegisterRequest;
 import com.weetalk.chat.auth.application.AuthService;
 import com.weetalk.chat.auth.security.AuthCookieService;
 import com.weetalk.chat.auth.security.AuthUserPrincipal;
@@ -48,6 +49,12 @@ public class AuthController {
 		this.mediaUrlResolver = mediaUrlResolver;
 		this.authCookieService = authCookieService;
 	}
+	
+	@PostMapping("/register")
+    public ResponseEntity<Void> register(@Valid @RequestBody RegisterRequest request) {
+        authService.register(request);
+        return ResponseEntity.status(HttpStatus.CREATED).build();
+    }
 
 	@PostMapping("/login")
 	public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {

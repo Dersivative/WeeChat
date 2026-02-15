@@ -4,32 +4,68 @@ type UserLoginPanelProps = {
   formState: {
     login: string
     password: string
+    email?: string        
+    displayName?: string  
   }
-  onFormChange: (field: 'login' | 'password', value: string) => void
-  onLoginSubmit: (event: FormEvent<HTMLFormElement>) => void
-  loginLoading: boolean
-  loginError: string | null
+  isRegistering: boolean  
+  onFormChange: (field: string, value: string) => void
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void
+  onToggleMode: () => void 
+  loading: boolean
+  error: string | null
 }
 
 function UserLoginPanel({
   formState,
+  isRegistering,
   onFormChange,
-  onLoginSubmit,
-  loginLoading,
-  loginError,
+  onSubmit,
+  onToggleMode,
+  loading,
+  error,
 }: UserLoginPanelProps) {
   return (
     <section className="form-panel">
-      <h2>Login</h2>
-      <p className="hint">Type in your credentials.</p>
-      <form className="form-grid" onSubmit={onLoginSubmit}>
+      <h2>{isRegistering ? 'Create Account' : 'Login'}</h2>
+      <p className="hint">
+        {isRegistering 
+          ? 'Join as a parent to manage your family.' 
+          : 'Type in your credentials.'}
+      </p>
+      
+      <form className="form-grid" onSubmit={onSubmit}>
+        {isRegistering && (
+          <>
+            <label className="field">
+              Display Name
+              <input
+                type="text"
+                placeholder="e.g. Alice"
+                value={formState.displayName || ''}
+                onChange={(e) => onFormChange('displayName', e.target.value)}
+                required
+              />
+            </label>
+            <label className="field">
+              Email
+              <input
+                type="email"
+                placeholder="alice@example.com"
+                value={formState.email || ''}
+                onChange={(e) => onFormChange('email', e.target.value)}
+                required
+              />
+            </label>
+          </>
+        )}
+
         <label className="field">
           Username
           <input
             type="text"
             placeholder="Login"
             value={formState.login}
-            onChange={(event) => onFormChange('login', event.target.value)}
+            onChange={(e) => onFormChange('login', e.target.value)}
             required
           />
         </label>
@@ -39,13 +75,26 @@ function UserLoginPanel({
             type="password"
             placeholder="Password"
             value={formState.password}
-            onChange={(event) => onFormChange('password', event.target.value)}
+            onChange={(e) => onFormChange('password', e.target.value)}
             required
           />
         </label>
-        {loginError ? <p className="form-error">{loginError}</p> : null}
-        <button className="primary" type="submit" disabled={loginLoading}>
-          {loginLoading ? 'Signing in...' : 'Continue'}
+
+        {error ? <p className="form-error">{error}</p> : null}
+        
+        <button className="primary" type="submit" disabled={loading}>
+          {loading ? 'Processing...' : (isRegistering ? 'Sign Up' : 'Continue')}
+        </button>
+
+        <button 
+          type="button" 
+          className="link-button" 
+          onClick={onToggleMode}
+          style={{ marginTop: '1rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary-color)' }}
+        >
+          {isRegistering 
+            ? 'Already have an account? Sign in' 
+            : 'No account? Create one'}
         </button>
       </form>
     </section>

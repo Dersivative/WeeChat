@@ -39,13 +39,15 @@ services:
       POSTGRES_USER: weechat_user
       POSTGRES_PASSWORD: weechat_password
       POSTGRES_DB: weechat_db
+    ports:
+      - "54321:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - private
+      - public
 
     
-
   mongo:
     image: mongo:7
     container_name: chat-mongo-weechat
@@ -56,8 +58,11 @@ services:
     volumes:
       - mongo_data:/data/db
       - ../data/seed/mongo_seed.js:/docker-entrypoint-initdb.d/mongo_seed.js:ro
+    ports:
+      - "21345:27017"
     networks:
       - private
+      - public
 
   pl-guard:
     image: ghcr.io/dersivative/weechat-pl-guard:latest

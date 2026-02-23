@@ -155,6 +155,57 @@ public class ChildAuthService {
 		);
 	}
 
+	@Transactional
+	public ChildResponse linkChildToParent(UUID parentId, String token) {
+		User parent = loadParent(parentId);
+		String normalizedToken = token == null ? null : token.trim();
+		
+		if (normalizedToken == null || normalizedToken.isBlank()) {
+			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid token");
+		}
+
+		Instant now = Instant.now();
+		List<Child> candidates = childRepository.findByLoginCodeHashIsNotNullAndLoginCodeExpiresAtAfter(now);
+		Child matched = null;
+		
+		for (Child child : candidates) {
+			if (passwordEncoder.matches(normalizedToken, child.getLoginCodeHash())) {
+				matched = child;
+				break;
+			}
+		}
+
+		if (matched == null) {
+			throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Invalid or expired code");
+		}
+
+		// Tworzymy nową, "effectively final" zmienną specjalnie dla lambdy
+		UUID matchedId = matched.getId();
+		boolean alreadyLinked = parent.getChildren().stream()
+			.anyMatch(c -> c.getId().equals(matchedId));
+			
+		if (alreadyLinked) {
+			throw new ResponseStatusException(HttpStatus.CONFLICT, "Child is already linked to your account");
+		}
+
+		parent.getChildren().add(matched);
+		matched.getParents().add(parent);
+		
+		userRepository.save(parent);
+		childRepository.save(matched);
+
+		clearLoginToken(matched);
+
+		return new ChildResponse(
+			matched.getId(),
+			matched.getDisplayName(),
+			mediaUrlResolver.resolveAvatarUrl(matched.getAvatarFileName()),
+			matched.getModerationLevel()
+		);
+	}
+
+	
+
 	private User loadParent(UUID parentId) {
 		return userRepository.findById(parentId)
 			.orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Parent account required"));

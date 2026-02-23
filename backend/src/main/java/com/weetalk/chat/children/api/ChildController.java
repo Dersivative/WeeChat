@@ -8,6 +8,7 @@ import com.weetalk.chat.children.api.dto.ChildLoginResponse;
 import com.weetalk.chat.children.api.dto.ChildLoginTokenResponse;
 import com.weetalk.chat.children.api.dto.ChildResponse;
 import com.weetalk.chat.children.api.dto.CreateChildRequest;
+import com.weetalk.chat.children.api.dto.LinkChildRequest;
 import com.weetalk.chat.children.application.ChildLoginResult;
 import com.weetalk.chat.children.application.ChildAuthService;
 import com.weetalk.chat.children.application.ChildManagementService;
@@ -135,5 +136,12 @@ public class ChildController {
 			.header(HttpHeaders.SET_COOKIE, accessCookie.toString())
 			.header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
 			.body(result.response());
+	}
+	@PostMapping("/link")
+	public ChildResponse linkChild(
+		@AuthenticationPrincipal AuthUserPrincipal principal, 
+		@RequestBody LinkChildRequest request
+	) {
+		return childAuthService.linkChildToParent(principal.getAccountId(), request.getToken());
 	}
 }

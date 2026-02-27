@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import ChildLoginPanel from '../../features/auth/ui/ChildLoginPanel'
 import UserLoginPanel from '../../features/auth/ui/UserLoginPanel'
 import type { AccountType } from '../../entities/account'
@@ -16,6 +16,9 @@ type AuthPanelProps = {
   loginError: string | null
   childLoginLoading: boolean
   childLoginError: string | null
+  registerPath?: boolean
+  onNavigateToRegister?: () => void
+  onNavigateToLogin?: () => void
   onRoleChange: (role: AccountType) => void
   onFormChange: (field: string, value: string) => void
   onLoginSubmit: (event: FormEvent<HTMLFormElement>) => void
@@ -30,19 +33,24 @@ function AuthPanel({
   loginError,
   childLoginLoading,
   childLoginError,
+  registerPath = false,
+  onNavigateToRegister,
+  onNavigateToLogin,
   onRoleChange,
   onFormChange,
   onLoginSubmit,
   onRegisterSubmit,
   onChildLoginSubmit,
 }: AuthPanelProps) {
-  
-  const [isRegistering, setIsRegistering] = useState(false)
+  const [isRegistering, setIsRegistering] = useState(registerPath)
+  useEffect(() => {
+    setIsRegistering(registerPath)
+  }, [registerPath])
 
   const handleUserSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     
-    if (isRegistering) {
+    if (isRegisteringMode) {
       onRegisterSubmit({
         login: formState.login,
         password: formState.password,
@@ -58,6 +66,8 @@ function AuthPanel({
     setIsRegistering(false)
     onRoleChange(newRole)
   }
+
+  const isRegisteringMode = registerPath || isRegistering
 
   return (
     <>
@@ -85,14 +95,14 @@ function AuthPanel({
       {role === 'user' ? (
         <UserLoginPanel
           formState={formState}
-          // POPRAWKA: Przekazujemy 'loginError' do propsa 'error'
           error={loginError}
-          // POPRAWKA: Przekazujemy 'loginLoading' do propsa 'loading'
           loading={loginLoading}
           onFormChange={onFormChange}
-          onSubmit={handleUserSubmit} 
-          isRegistering={isRegistering}
+          onSubmit={handleUserSubmit}
+          isRegistering={isRegisteringMode}
           onToggleMode={() => setIsRegistering(!isRegistering)}
+          onNavigateToRegister={onNavigateToRegister}
+          onNavigateToLogin={onNavigateToLogin}
         />
       ) : (
         <ChildLoginPanel 

@@ -1,6 +1,6 @@
 import { Client } from '@stomp/stompjs'
 import { type FormEvent, type TouchEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import './app-shell.css'
 import { AuthPanel, WelcomeHeader } from '../auth'
 import { ChatHeader, ChatViewSwitch } from '../chat'
@@ -13,15 +13,35 @@ import type { MessageItem } from '../../entities/message'
 import type { ThreadListItem, ThreadListResponse } from '../../entities/thread'
 import type { AuthFetch, RegisterRequest } from '../../shared/apiClient' 
 
+const VIEW_PARAM = 'view'
+type ViewValue = 'register' | 'chats' | 'friends' | 'children' | 'moderation-settings' | 'moderation-queue'
+
+const PATH_TO_VIEW: Record<string, ViewValue> = {
+  '/register': 'register',
+  '/chats': 'chats',
+  '/friends': 'friends',
+  '/children': 'children',
+  '/moderation/settings': 'moderation-settings',
+  '/moderation/queue': 'moderation-queue',
+}
+
 function AppShell() {
   const navigate = useNavigate()
   const location = useLocation()
-  
+  const [searchParams] = useSearchParams()
+  const currentView = searchParams.get(VIEW_PARAM)
+
+  const setView = useCallback(
+    (view: ViewValue | null) => {
+      navigate(view ? `/?${VIEW_PARAM}=${encodeURIComponent(view)}` : '/')
+    },
+    [navigate]
+  )
+
   const envApiBaseUrl =
     typeof import.meta.env.VITE_API_BASE_URL === 'string' ? import.meta.env.VITE_API_BASE_URL.trim() : ''
-  const fallbackApiBaseUrl = `${window.location.protocol}//api.${window.location.hostname}${
-    window.location.port ? `:${window.location.port}` : ''
-  }`
+  // When env is unset in production build: use same origin (no api. subdomain)
+  const fallbackApiBaseUrl = ''
 
   const isDev = import.meta.env.DEV
   const apiBaseUrl = isDev ? '' : (envApiBaseUrl || fallbackApiBaseUrl).replace(/\/$/, '')
@@ -50,19 +70,6 @@ function AppShell() {
   const authRef = useRef<AuthState | null>(null)
   const sessionMarkerKey = 'weechat.session'
 
-  const normalizePath = useCallback((path: string) => {
-    const trimmed = path.replace(/\/+$/, '')
-    return trimmed === '' ? '/' : trimmed
-  }, [])
-
-  const navigateIfNeeded = useCallback(
-    (nextPath: string) => {
-      if (normalizePath(location.pathname) !== nextPath) {
-        navigate(nextPath)
-      }
-    },
-    [location.pathname, navigate, normalizePath]
-  )
 
   const wsUrl = useMemo(() => {
     const base = apiBaseUrl || window.location.origin
@@ -128,15 +135,23 @@ function AppShell() {
 
   useEffect(() => { authRef.current = auth }, [auth])
 
+  // Migrate old path-based URLs to query param (e.g. /register -> /?view=register)
   useEffect(() => {
-    const path = normalizePath(location.pathname)
-    if (path === '/' && authRef.current) { setActivePanel('chats'); setChatView('chats'); return }
-    if (path === '/friends') { setActivePanel('chats'); setChatView('friends'); return }
-    if (path === '/chats' || path.startsWith('/threads/')) { setActivePanel('chats'); setChatView('chats'); return }
-    if (path === '/children') { setActivePanel('manage-children'); return }
-    if (path === '/moderation/settings') { setActivePanel('moderation-settings'); return }
-    if (path === '/moderation/queue') { setActivePanel('moderation-queue') }
-  }, [auth, location.pathname, normalizePath])
+    const path = location.pathname.replace(/\/+$/, '') || '/'
+    if (path !== '/' && PATH_TO_VIEW[path]) {
+      navigate(`/?${VIEW_PARAM}=${PATH_TO_VIEW[path]}`, { replace: true })
+    }
+  }, [location.pathname, navigate])
+
+  useEffect(() => {
+    if (currentView === 'register') return
+    if (currentView === 'friends') { setActivePanel('chats'); setChatView('friends'); return }
+    if (currentView === 'chats') { setActivePanel('chats'); setChatView('chats'); return }
+    if (currentView === 'children') { setActivePanel('manage-children'); return }
+    if (currentView === 'moderation-settings') { setActivePanel('moderation-settings'); return }
+    if (currentView === 'moderation-queue') { setActivePanel('moderation-queue'); return }
+    if (!currentView && authRef.current) { setActivePanel('chats'); setChatView('chats') }
+  }, [auth, currentView])
 
   useEffect(() => {
     if (!auth) return
@@ -245,14 +260,15 @@ function AppShell() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
+        credentials: 'include',
       })
 
       if (!response.ok) {
          const text = await response.text()
          let msg = text
-         try { 
+         try {
              const json = JSON.parse(text)
-             msg = json.message || msg 
+             msg = json.message ?? json.error ?? json.detail ?? msg
          } catch {}
          throw new Error(msg || 'Registration failed')
       }
@@ -296,7 +312,7 @@ function AppShell() {
     setFormState({ login: '', password: '', email: '', displayName: '' })
     setChildLoginError(null)
     setChildLoginLoading(false)
-    navigateIfNeeded('/')
+    setView(null)
   }
 
   const handleTouchStart = (event: TouchEvent<HTMLElement>) => {
@@ -322,11 +338,11 @@ function AppShell() {
   const handleFriendSelect = (accountId: string) => {
     setActivePanel('chats'); setChatView('chats')
     const match = threads.find((thread) => thread.memberAccountIds?.includes(accountId))
-    if (match) { setSelectedThreadId(match.threadId); setPendingRecipientId(null); navigateIfNeeded('/chats') }
-    else { setSelectedThreadId(null); setPendingRecipientId(accountId); navigateIfNeeded('/chats') }
+    if (match) { setSelectedThreadId(match.threadId); setPendingRecipientId(null); setView('chats') }
+    else { setSelectedThreadId(null); setPendingRecipientId(accountId); setView('chats') }
   }
 
-  const handleThreadCreated = (threadId: string) => { setPendingRecipientId(null); setSelectedThreadId(threadId); refreshThreads(); navigateIfNeeded('/chats') }
+  const handleThreadCreated = (threadId: string) => { setPendingRecipientId(null); setSelectedThreadId(threadId); refreshThreads(); setView('chats') }
 
   return (
     <div className={`app ${menuOpen ? 'menu-open' : ''}`}>
@@ -341,6 +357,9 @@ function AppShell() {
             loginLoading={loginLoading}
             childLoginError={childLoginError}
             childLoginLoading={childLoginLoading}
+            registerPath={currentView === 'register'}
+            onNavigateToRegister={() => setView('register')}
+            onNavigateToLogin={() => setView(null)}
             onFormChange={(field: string, value: string) =>
               setFormState((prev) => ({ ...prev, [field]: value }))
             }
@@ -355,15 +374,15 @@ function AppShell() {
           <AccountMenu open={menuOpen} accountType={auth.accountType} login={auth.profile.login} onClose={() => setMenuOpen(false)} onLogout={handleLogout}
             onSelectPanel={(panel) => {
               setActivePanel(panel); setMenuOpen(false)
-              if (panel === 'chats') { setChatView('chats'); navigateIfNeeded('/chats'); return }
-              if (panel === 'manage-children') { navigateIfNeeded('/children'); return }
-              if (panel === 'moderation-settings') { navigateIfNeeded('/moderation/settings'); return }
-              if (panel === 'moderation-queue') { navigateIfNeeded('/moderation/queue') }
+              if (panel === 'chats') { setChatView('chats'); setView('chats'); return }
+              if (panel === 'manage-children') { setView('children'); return }
+              if (panel === 'moderation-settings') { setView('moderation-settings'); return }
+              if (panel === 'moderation-queue') { setView('moderation-queue') }
             }}
           />
           {activePanel === 'chats' ? (
             <div className="chat-view-switch">
-              <ChatViewSwitch viewMode={chatView} onViewChange={(nextView) => { setChatView(nextView); navigateIfNeeded(nextView === 'friends' ? '/friends' : '/chats') }} />
+              <ChatViewSwitch viewMode={chatView} onViewChange={(nextView) => { setChatView(nextView); setView(nextView === 'friends' ? 'friends' : 'chats') }} />
             </div>
           ) : null}
           {showChat ? (

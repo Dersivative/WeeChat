@@ -11,6 +11,8 @@ type UserLoginPanelProps = {
   onFormChange: (field: string, value: string) => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   onToggleMode: () => void 
+  onNavigateToRegister?: () => void
+  onNavigateToLogin?: () => void
   loading: boolean
   error: string | null
 }
@@ -21,9 +23,16 @@ function UserLoginPanel({
   onFormChange,
   onSubmit,
   onToggleMode,
+  onNavigateToRegister,
+  onNavigateToLogin,
   loading,
   error,
 }: UserLoginPanelProps) {
+  const handleToggleMode = () => {
+    if (isRegistering && onNavigateToLogin) onNavigateToLogin()
+    else if (!isRegistering && onNavigateToRegister) onNavigateToRegister()
+    else onToggleMode()
+  }
   return (
     <section className="form-panel">
       <h2>{isRegistering ? 'Create Account' : 'Login'}</h2>
@@ -80,7 +89,7 @@ function UserLoginPanel({
           />
         </label>
 
-        {error ? <p className="form-error">{error}</p> : null}
+        {error ? <p className="form-error" role="alert">{error}</p> : null}
         
         <button className="primary" type="submit" disabled={loading}>
           {loading ? 'Processing...' : (isRegistering ? 'Sign Up' : 'Continue')}
@@ -89,7 +98,7 @@ function UserLoginPanel({
         <button 
           type="button" 
           className="link-button" 
-          onClick={onToggleMode}
+          onClick={handleToggleMode}
           style={{ marginTop: '1rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary-color)' }}
         >
           {isRegistering 

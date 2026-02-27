@@ -25,7 +25,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 	@Override
 	protected boolean shouldNotFilter(HttpServletRequest request) {
 		String path = request.getRequestURI();
-		return path != null && path.startsWith("/api/auth/");
+		if (path == null) {
+			return false;
+		}
+		if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+			return true;
+		}
+		// Use contains() so auth endpoints are skipped even with a servlet context path or proxy prefix
+		return path.contains("/api/auth/")
+			|| path.equals("/api/children/login")
+			|| path.endsWith("/api/children/login")
+			|| path.contains("/ws/")
+			|| path.contains("/v3/api-docs/")
+			|| path.contains("/swagger-ui")
+			|| path.endsWith("/swagger-ui.html");
 	}
 
 	@Override

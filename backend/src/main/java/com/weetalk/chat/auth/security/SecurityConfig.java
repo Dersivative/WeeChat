@@ -17,6 +17,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
+
+import com.weetalk.chat.config.RequestLoggingFilter;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
@@ -24,11 +26,13 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @EnableWebSecurity
 public class SecurityConfig {
 	private final JwtAuthenticationFilter jwtAuthenticationFilter;
+	private final RequestLoggingFilter requestLoggingFilter;
 	@Value("${security.cors.allowed-origins:}")
 	private String corsAllowedOrigins;
 
-	public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+	public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, RequestLoggingFilter requestLoggingFilter) {
 		this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+		this.requestLoggingFilter = requestLoggingFilter;
 	}
 
 	@Bean
@@ -39,12 +43,18 @@ public class SecurityConfig {
 			.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 			.authorizeHttpRequests(auth -> auth
 				.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+				.requestMatchers("/", "/index.html", "/vite.svg", "/assets/**").permitAll()
 				.requestMatchers("/api/auth/**").permitAll()
 				.requestMatchers(HttpMethod.POST, "/api/children/login").permitAll()
 				.requestMatchers("/ws/**").permitAll()
 				.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+				.requestMatchers(request -> "GET".equals(request.getMethod())
+					&& request.getRequestURI() != null
+					&& !request.getRequestURI().startsWith("/api"))
+					.permitAll()
 				.anyRequest().authenticated()
 			)
+			.addFilterBefore(requestLoggingFilter, UsernamePasswordAuthenticationFilter.class)
 			.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
 			.build();
 	}
@@ -64,7 +74,7 @@ public class SecurityConfig {
 
 	private List<String> resolveAllowedOrigins() {
 		if (corsAllowedOrigins == null || corsAllowedOrigins.isBlank()) {
-			return List.of();
+			return List.of("http://localhost:5173", "http://localhost:3000");
 		}
 		return Arrays.stream(corsAllowedOrigins.split(","))
 			.map(String::trim)

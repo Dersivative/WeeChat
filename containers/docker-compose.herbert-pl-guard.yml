@@ -12,7 +12,7 @@ services:
 
     container_name: pl-guard
     ports:
-      - "8001:8000"   # optional: for local testing; Spring can call by service name without exposing
+      - "8001:8000"
     networks:
       - appnet
     restart: unless-stopped

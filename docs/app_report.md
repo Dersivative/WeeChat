@@ -59,7 +59,7 @@ WeeChat to aplikacja czatu z naciskiem na bezpieczeństwo dzieci w sieci. Wsparc
 
 ### 5) Uwierzytelnianie i zabezpieczenia (backend)
 - **JWT (HS256)** z krótkim access tokenem i refresh tokenem:
-  - Własna implementacja JWT (`JwtService`), bez zewnętrznej biblioteki.
+  - Implementacja oparta o bibliotekę JJWT (`io.jsonwebtoken`).
   - Domyślne TTL: access 300s, refresh 2592000s (30 dni).
 - **Cookies**:
   - Nazwy: `weechat_access`, `weechat_refresh` (konfigurowalne).
@@ -114,6 +114,8 @@ WeeChat to aplikacja czatu z naciskiem na bezpieczeństwo dzieci w sieci. Wsparc
   - Podgląd ostatniej wiadomości ucinany do 20 znaków; data w timestampie pod godziną.
   - Widok wątku z paginacją wsteczną.
   - Wysyłanie wiadomości w istniejących wątkach i start rozmów bezpośrednich.
+- **Znajomi**:
+  - Zaproszenia do znajomych wyświetlane na górze listy i możliwe do zaakceptowania/odrzucenia.
 - **Realtime**:
   - WebSocket STOMP do aktualizacji listy wątków i napływających wiadomości.
 - **Routing (slugi)**:
